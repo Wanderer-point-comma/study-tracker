@@ -47,21 +47,13 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 def init_db():
-    """Создаёт таблицы и добавляет админа"""
+    """Создаёт таблицы ТОЛЬКО если их нет"""
     conn = sqlite3.connect('study_tracker.db')
     c = conn.cursor()
     
-    # Удаляем ВСЕ таблицы для чистой установки
-    c.execute("DROP TABLE IF EXISTS login_logs")
-    c.execute("DROP TABLE IF EXISTS events")
-    c.execute("DROP TABLE IF EXISTS subjects")
-    c.execute("DROP TABLE IF EXISTS records")
-    c.execute("DROP TABLE IF EXISTS devices")
-    c.execute("DROP TABLE IF EXISTS users")
-    
-    # Создаём все таблицы с нуля
+    # Создаём таблицы только если их нет (IF NOT EXISTS)
     c.execute('''
-        CREATE TABLE users (
+        CREATE TABLE IF NOT EXISTS users (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             username TEXT UNIQUE,
             password TEXT,
@@ -71,7 +63,7 @@ def init_db():
     ''')
     
     c.execute('''
-        CREATE TABLE devices (
+        CREATE TABLE IF NOT EXISTS devices (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             user_id INTEGER,
             device_name TEXT,
@@ -84,7 +76,7 @@ def init_db():
     ''')
     
     c.execute('''
-        CREATE TABLE records (
+        CREATE TABLE IF NOT EXISTS records (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             user_id INTEGER,
             date TEXT,
@@ -100,7 +92,7 @@ def init_db():
     ''')
     
     c.execute('''
-        CREATE TABLE subjects (
+        CREATE TABLE IF NOT EXISTS subjects (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             user_id INTEGER,
             name TEXT,
@@ -110,7 +102,7 @@ def init_db():
     ''')
     
     c.execute('''
-        CREATE TABLE events (
+        CREATE TABLE IF NOT EXISTS events (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             user_id INTEGER,
             date TEXT,
@@ -121,7 +113,7 @@ def init_db():
     ''')
     
     c.execute('''
-        CREATE TABLE login_logs (
+        CREATE TABLE IF NOT EXISTS login_logs (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             user_id INTEGER,
             device_id INTEGER,
@@ -132,13 +124,16 @@ def init_db():
         )
     ''')
     
-    # Создаём админа
-    c.execute('''
-        INSERT INTO users (username, password, created_at, is_admin)
-        VALUES (?, ?, ?, ?)
-    ''', ('admin', 'admin', datetime.now().strftime("%Y-%m-%d %H:%M:%S"), 1))
+    # Создаём админа только если его нет
+    c.execute('SELECT COUNT(*) FROM users WHERE username = ?', ('admin',))
+    count = c.fetchone()[0]
     
-    print("✅ База данных создана. Логин: admin, Пароль: admin")
+    if count == 0:
+        c.execute('''
+            INSERT INTO users (username, password, created_at, is_admin)
+            VALUES (?, ?, ?, ?)
+        ''', ('admin', 'admin', datetime.now().strftime("%Y-%m-%d %H:%M:%S"), 1))
+        print("✅ Админ создан: логин=admin, пароль=admin")
     
     conn.commit()
     conn.close()
@@ -320,6 +315,7 @@ def execute_sql(query):
         conn.close()
         return False, str(e)
 
+# Инициализация БД (только один раз при первом запуске)
 init_db()
 
 def login_page():
@@ -327,7 +323,7 @@ def login_page():
     st.markdown("<p style='text-align: center; color: gray;'>Войдите в систему</p>", unsafe_allow_html=True)
     st.markdown("---")
     
-    with st.form("login_form"):
+    with st.form("login_form", clear_on_submit=True):
         username = st.text_input("👤 Логин")
         password = st.text_input("🔒 Пароль", type="password")
         device_name = st.text_input("📱 Название устройства (необязательно)", 
@@ -352,7 +348,7 @@ def login_page():
                 else:
                     st.error("❌ Неверный логин или пароль")
             else:
-                st.warning("⚠️ Заполните все поля")
+                st.warning("️ Заполните все поля")
 
 def logout():
     if st.sidebar.button("🚪 Выйти", use_container_width=True):
@@ -381,20 +377,20 @@ def main_app():
         "➕ Добавить запись",
         "📋 Все записи",
         "📚 Мои предметы",
-        "📅 Календарь",
-        "📈 Аналитика",
-        "️ Настройки профиля"
+        " Календарь",
+        " Аналитика",
+        "⚙️ Настройки профиля"
     ]
     
     if user_type == 'admin':
         menu_options.extend([
             "📱 Устройства",
-            "🗄️ База данных",
-            "📜 Логи входов"
+            "️ База данных",
+            " Логи входов"
         ])
     
     if 'current_menu' not in st.session_state:
-        st.session_state['current_menu'] = "📊 Дашборд"
+        st.session_state['current_menu'] = " Дашборд"
     
     try:
         default_index = menu_options.index(st.session_state['current_menu'])
@@ -409,7 +405,8 @@ def main_app():
         label_visibility="collapsed"
     )
     
-    st.session_state['current_menu'] = selected_menu
+    if selected_menu != st.session_state['current_menu']:
+        st.session_state['current_menu'] = selected_menu
     
     st.sidebar.markdown("---")
     logout()
@@ -446,7 +443,7 @@ def main_app():
                 upcoming = events_df[events_df['date'] >= datetime.now()].sort_values('date').head(5)
                 
                 if upcoming.empty:
-                    st.info(" Нет предстоящих событий")
+                    st.info("📭 Нет предстоящих событий")
                 else:
                     for _, event in upcoming.iterrows():
                         st.markdown(f"""
@@ -463,7 +460,7 @@ def main_app():
             col1, col2 = st.columns(2)
             
             with col1:
-                st.subheader(" Средний балл по предметам")
+                st.subheader("📊 Средний балл по предметам")
                 subject_avg = df.groupby('subject')['grade'].mean().reset_index()
                 fig_subject = px.bar(subject_avg, x='subject', y='grade', 
                                     color='grade', color_continuous_scale='Viridis')
@@ -488,15 +485,16 @@ def main_app():
             fig_timeline.update_layout(height=400, xaxis_title="Дата", yaxis_title="Оценка")
             st.plotly_chart(fig_timeline, use_container_width=True)
     
-    elif selected_menu == " Добавить запись":
+    elif selected_menu == "➕ Добавить запись":
         st.header("➕ Добавить новую запись")
         
         subjects_df = get_subjects(user_id)
         
         if subjects_df.empty:
-            st.warning("⚠️ Сначала добавьте предметы в разделе 'Мои предметы'")
+            st.warning("⚠️ Сначала добавьте предметы в разделе '📚 Мои предметы'")
+            st.info("👉 Перейдите в раздел 'Мои предметы' и добавьте хотя бы один предмет")
         else:
-            with st.form("add_record_form"):
+            with st.form("add_record_form", clear_on_submit=True):
                 col1, col2 = st.columns(2)
                 
                 with col1:
@@ -521,13 +519,13 @@ def main_app():
                     else:
                         st.error("⚠️ Пожалуйста, заполните все обязательные поля")
     
-    elif selected_menu == " Все записи":
-        st.header(" Все ваши записи")
+    elif selected_menu == "📋 Все записи":
+        st.header("📋 Все ваши записи")
         
         df = get_records(user_id)
         
         if df.empty:
-            st.info("📭 Записей пока нет")
+            st.info(" Записей пока нет")
         else:
             col1, col2 = st.columns(2)
             with col1:
@@ -561,33 +559,32 @@ def main_app():
         
         with col1:
             st.subheader("➕ Добавить предмет")
-            with st.form("add_subject_form"):
+            with st.form("add_subject_form", clear_on_submit=True):
                 new_subject = st.text_input("Название предмета", placeholder="Например: Математика")
                 
                 color_options = {
                     "🔴 Красный": "#ef4444",
                     "🟠 Оранжевый": "#f97316",
                     "🟡 Жёлтый": "#eab308",
-                    "🟢 Зелёный": "#22c55e",
+                    " Зелёный": "#22c55e",
                     "🔵 Синий": "#3b82f6",
-                    "🟣 Фиолетовый": "#a855f7",
+                    " Фиолетовый": "#a855f7",
                     "⚫ Серый": "#6b7280"
                 }
                 color_name = st.selectbox("Цвет предмета", options=list(color_options.keys()))
                 color = color_options[color_name]
                 
-                submitted = st.form_submit_button(" Добавить предмет", type="primary", use_container_width=True)
+                submitted = st.form_submit_button("💾 Добавить предмет", type="primary", use_container_width=True)
                 
                 if submitted:
                     if new_subject:
                         success, message = add_subject(user_id, new_subject.capitalize(), color)
                         if success:
                             st.success(f"✅ {message}")
-                            st.rerun()
                         else:
                             st.error(f"❌ {message}")
                     else:
-                        st.warning("⚠️ Введите название предмета")
+                        st.warning("️ Введите название предмета")
         
         with col2:
             st.subheader("📋 Список предметов")
@@ -633,13 +630,13 @@ def main_app():
                         </div>
                         """, unsafe_allow_html=True)
                     with col_del:
-                        if st.button("🗑️", key=f"del_event_{event['id']}"):
+                        if st.button("️", key=f"del_event_{event['id']}"):
                             delete_event(event['id'])
                             st.rerun()
         
         with col2:
             st.subheader("➕ Добавить событие")
-            with st.form("add_event_form"):
+            with st.form("add_event_form", clear_on_submit=True):
                 event_date = st.date_input("📅 Дата", datetime.now())
                 event_title = st.text_input("📝 Название", placeholder="Например: Контрольная")
                 event_description = st.text_area("💬 Описание", placeholder="Дополнительная информация")
@@ -649,7 +646,7 @@ def main_app():
                     "🟠 Оранжевый": "#f97316",
                     "🟡 Жёлтый": "#eab308",
                     "🟢 Зелёный": "#22c55e",
-                    "🔵 Синий": "#3b82f6",
+                    " Синий": "#3b82f6",
                     "🟣 Фиолетовый": "#a855f7"
                 }
                 color_name = st.selectbox("🎨 Цвет", options=list(color_options.keys()))
@@ -662,12 +659,11 @@ def main_app():
                         add_event(user_id, event_date.strftime("%Y-%m-%d"), 
                                  event_title, event_description, color)
                         st.success("✅ Событие добавлено!")
-                        st.rerun()
                     else:
-                        st.warning("️ Введите название события")
+                        st.warning("⚠️ Введите название события")
     
-    elif selected_menu == "📈 Аналитика":
-        st.header("📈 Подробная аналитика")
+    elif selected_menu == " Аналитика":
+        st.header(" Подробная аналитика")
         
         df = get_records(user_id)
         
@@ -703,12 +699,12 @@ def main_app():
                                    color_continuous_scale="YlGnBu")
             st.plotly_chart(fig_heatmap, use_container_width=True)
     
-    elif selected_menu == "️ Настройки профиля":
+    elif selected_menu == "⚙️ Настройки профиля":
         st.header("⚙️ Настройки профиля")
         
-        st.info(f"👤 Текущий логин: **{username}**")
+        st.info(f" Текущий логин: **{username}**")
         
-        with st.form("update_credentials_form"):
+        with st.form("update_credentials_form", clear_on_submit=True):
             st.subheader("Изменить логин и пароль")
             
             new_username = st.text_input("👤 Новый логин", value=username)
@@ -719,7 +715,7 @@ def main_app():
             
             if submitted:
                 if new_password != confirm_password:
-                    st.error(" Пароли не совпадают")
+                    st.error("❌ Пароли не совпадают")
                 elif len(new_password) < 4:
                     st.error("❌ Пароль должен быть не короче 4 символов")
                 else:
@@ -727,25 +723,24 @@ def main_app():
                     if success:
                         st.success(f"✅ {message}")
                         st.session_state['username'] = new_username
-                        st.rerun()
                     else:
                         st.error(f"❌ {message}")
     
-    elif selected_menu == "📱 Устройства":
-        st.header("📱 Управление устройствами")
+    elif selected_menu == " Устройства":
+        st.header(" Управление устройствами")
         
         devices_df = get_devices(user_id)
         
         col1, col2 = st.columns(2)
         
         with col1:
-            st.subheader(" Добавить устройство")
-            with st.form("add_device_form"):
+            st.subheader("➕ Добавить устройство")
+            with st.form("add_device_form", clear_on_submit=True):
                 device_name = st.text_input("📱 Название устройства", placeholder="Например: Мой телефон")
                 device_username = st.text_input(" Логин для устройства", placeholder="Например: phone_user")
                 device_password = st.text_input("🔒 Пароль для устройства", type="password")
                 
-                submitted = st.form_submit_button("💾 Добавить устройство", type="primary", use_container_width=True)
+                submitted = st.form_submit_button(" Добавить устройство", type="primary", use_container_width=True)
                 
                 if submitted:
                     if device_name and device_username and device_password:
@@ -753,7 +748,6 @@ def main_app():
                         if success:
                             st.success(f"✅ {message}")
                             st.info(f"📋 Данные для входа:\n- Логин: {device_username}\n- Пароль: {device_password}")
-                            st.rerun()
                         else:
                             st.error(f"❌ {message}")
                     else:
@@ -778,7 +772,6 @@ def main_app():
                     
                     if st.button(f"🗑️ Удалить {device['device_name']}", key=f"del_device_{device['id']}"):
                         delete_device(device['id'], user_id)
-                        st.success("✅ Устройство удалено")
                         st.rerun()
     
     elif selected_menu == "🗄️ База данных":
@@ -820,7 +813,7 @@ def main_app():
                 else:
                     st.error(f"❌ Ошибка: {result}")
             else:
-                st.warning("️ Введите SQL запрос")
+                st.warning("⚠️ Введите SQL запрос")
     
     elif selected_menu == "📜 Логи входов":
         st.header("📜 История входов")
@@ -828,7 +821,7 @@ def main_app():
         logs_df = get_login_logs(user_id)
         
         if logs_df.empty:
-            st.info("📭 Логи входов пусты")
+            st.info(" Логи входов пусты")
         else:
             st.dataframe(logs_df, use_container_width=True, hide_index=True)
             
