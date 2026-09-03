@@ -6,7 +6,6 @@ from datetime import datetime, timedelta
 import os
 import sqlite3
 
-# Настройка страницы
 st.set_page_config(
     page_title="📚 Мой Дневник Успеваемости",
     page_icon="📚",
@@ -14,7 +13,6 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# === КАСТОМНЫЕ СТИЛИ ===
 st.markdown("""
 <style>
     .nav-divider {
@@ -48,24 +46,22 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# === ФУНКЦИИ ДЛЯ РАБОТЫ С БАЗОЙ ДАННЫХ ===
-
 def init_db():
-    """Создаёт таблицы и добавляет админа, если их нет"""
+    """Создаёт таблицы и добавляет админа"""
     conn = sqlite3.connect('study_tracker.db')
     c = conn.cursor()
     
-    # Проверяем и пересоздаём таблицы если структура не совпадает
-    tables_to_check = ['users', 'devices', 'records', 'subjects', 'events', 'login_logs']
+    # Удаляем ВСЕ таблицы для чистой установки
+    c.execute("DROP TABLE IF EXISTS login_logs")
+    c.execute("DROP TABLE IF EXISTS events")
+    c.execute("DROP TABLE IF EXISTS subjects")
+    c.execute("DROP TABLE IF EXISTS records")
+    c.execute("DROP TABLE IF EXISTS devices")
+    c.execute("DROP TABLE IF EXISTS users")
     
-    for table in tables_to_check:
-        try:
-            c.execute(f"SELECT * FROM {table} LIMIT 1")
-        except sqlite3.OperationalError:
-            c.execute(f"DROP TABLE IF EXISTS {table}")
-    
+    # Создаём все таблицы с нуля
     c.execute('''
-        CREATE TABLE IF NOT EXISTS users (
+        CREATE TABLE users (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             username TEXT UNIQUE,
             password TEXT,
@@ -75,7 +71,7 @@ def init_db():
     ''')
     
     c.execute('''
-        CREATE TABLE IF NOT EXISTS devices (
+        CREATE TABLE devices (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             user_id INTEGER,
             device_name TEXT,
@@ -88,7 +84,7 @@ def init_db():
     ''')
     
     c.execute('''
-        CREATE TABLE IF NOT EXISTS records (
+        CREATE TABLE records (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             user_id INTEGER,
             date TEXT,
@@ -104,7 +100,7 @@ def init_db():
     ''')
     
     c.execute('''
-        CREATE TABLE IF NOT EXISTS subjects (
+        CREATE TABLE subjects (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             user_id INTEGER,
             name TEXT,
@@ -114,7 +110,7 @@ def init_db():
     ''')
     
     c.execute('''
-        CREATE TABLE IF NOT EXISTS events (
+        CREATE TABLE events (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             user_id INTEGER,
             date TEXT,
@@ -125,7 +121,7 @@ def init_db():
     ''')
     
     c.execute('''
-        CREATE TABLE IF NOT EXISTS login_logs (
+        CREATE TABLE login_logs (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             user_id INTEGER,
             device_id INTEGER,
@@ -136,22 +132,18 @@ def init_db():
         )
     ''')
     
-    # Создаём админа по умолчанию
-    c.execute('SELECT COUNT(*) FROM users WHERE username = ?', ('admin',))
-    count = c.fetchone()[0]
+    # Создаём админа
+    c.execute('''
+        INSERT INTO users (username, password, created_at, is_admin)
+        VALUES (?, ?, ?, ?)
+    ''', ('admin', 'admin', datetime.now().strftime("%Y-%m-%d %H:%M:%S"), 1))
     
-    if count == 0:
-        c.execute('''
-            INSERT INTO users (username, password, created_at, is_admin)
-            VALUES (?, ?, ?, ?)
-        ''', ('admin', 'admin', datetime.now().strftime("%Y-%m-%d %H:%M:%S"), 1))
-        print("✅ Админ создан: логин=admin, пароль=admin")
+    print("✅ База данных создана. Логин: admin, Пароль: admin")
     
     conn.commit()
     conn.close()
 
 def verify_user(username, password):
-    """Проверяет логин и пароль"""
     conn = sqlite3.connect('study_tracker.db')
     c = conn.cursor()
     
@@ -176,7 +168,6 @@ def verify_user(username, password):
     return False, None, None, None
 
 def log_login(user_id, device_id, device_name, ip_address, user_agent):
-    """Записывает лог входа"""
     conn = sqlite3.connect('study_tracker.db')
     c = conn.cursor()
     c.execute('''
@@ -187,7 +178,6 @@ def log_login(user_id, device_id, device_name, ip_address, user_agent):
     conn.close()
 
 def update_user_credentials(user_id, new_username, new_password):
-    """Обновляет логин и пароль пользователя"""
     conn = sqlite3.connect('study_tracker.db')
     c = conn.cursor()
     try:
@@ -201,7 +191,6 @@ def update_user_credentials(user_id, new_username, new_password):
         return False, "Такой логин уже существует"
 
 def add_record(user_id, date, subject, topic, grade, hours, comment, device_id=None):
-    """Добавляет запись"""
     conn = sqlite3.connect('study_tracker.db')
     c = conn.cursor()
     c.execute('''
@@ -212,14 +201,12 @@ def add_record(user_id, date, subject, topic, grade, hours, comment, device_id=N
     conn.close()
 
 def get_records(user_id):
-    """Получает записи пользователя"""
     conn = sqlite3.connect('study_tracker.db')
     df = pd.read_sql_query("SELECT * FROM records WHERE user_id = ?", conn, params=(user_id,))
     conn.close()
     return df
 
 def add_device(user_id, device_name, username, password):
-    """Добавляет новое устройство"""
     conn = sqlite3.connect('study_tracker.db')
     c = conn.cursor()
     try:
@@ -236,14 +223,12 @@ def add_device(user_id, device_name, username, password):
         return False, "Такой логин уже существует"
 
 def get_devices(user_id):
-    """Получает список устройств"""
     conn = sqlite3.connect('study_tracker.db')
     df = pd.read_sql_query("SELECT * FROM devices WHERE user_id = ?", conn, params=(user_id,))
     conn.close()
     return df
 
 def delete_device(device_id, user_id):
-    """Удаляет устройство"""
     conn = sqlite3.connect('study_tracker.db')
     c = conn.cursor()
     c.execute('DELETE FROM devices WHERE id = ? AND user_id = ?', (device_id, user_id))
@@ -251,7 +236,6 @@ def delete_device(device_id, user_id):
     conn.close()
 
 def get_login_logs(user_id):
-    """Получает логи входов"""
     conn = sqlite3.connect('study_tracker.db')
     df = pd.read_sql_query('''
         SELECT * FROM login_logs 
@@ -262,7 +246,6 @@ def get_login_logs(user_id):
     return df
 
 def add_subject(user_id, name, color):
-    """Добавляет предмет"""
     conn = sqlite3.connect('study_tracker.db')
     c = conn.cursor()
     try:
@@ -278,14 +261,12 @@ def add_subject(user_id, name, color):
         return False, "Такой предмет уже существует"
 
 def get_subjects(user_id):
-    """Получает список предметов"""
     conn = sqlite3.connect('study_tracker.db')
     df = pd.read_sql_query("SELECT * FROM subjects WHERE user_id = ?", conn, params=(user_id,))
     conn.close()
     return df
 
 def delete_subject(user_id, subject_name):
-    """Удаляет предмет"""
     conn = sqlite3.connect('study_tracker.db')
     c = conn.cursor()
     c.execute('DELETE FROM subjects WHERE user_id = ? AND name = ?', (user_id, subject_name))
@@ -293,7 +274,6 @@ def delete_subject(user_id, subject_name):
     conn.close()
 
 def add_event(user_id, date, title, description, color):
-    """Добавляет событие в календарь"""
     conn = sqlite3.connect('study_tracker.db')
     c = conn.cursor()
     c.execute('''
@@ -304,14 +284,12 @@ def add_event(user_id, date, title, description, color):
     conn.close()
 
 def get_events(user_id):
-    """Получает события календаря"""
     conn = sqlite3.connect('study_tracker.db')
     df = pd.read_sql_query("SELECT * FROM events WHERE user_id = ?", conn, params=(user_id,))
     conn.close()
     return df
 
 def delete_event(event_id):
-    """Удаляет событие"""
     conn = sqlite3.connect('study_tracker.db')
     c = conn.cursor()
     c.execute('DELETE FROM events WHERE id = ?', (event_id,))
@@ -319,7 +297,6 @@ def delete_event(event_id):
     conn.close()
 
 def get_all_tables():
-    """Получает список всех таблиц"""
     conn = sqlite3.connect('study_tracker.db')
     c = conn.cursor()
     c.execute("SELECT name FROM sqlite_master WHERE type='table';")
@@ -328,14 +305,12 @@ def get_all_tables():
     return tables
 
 def get_table_data(table_name):
-    """Получает данные из таблицы"""
     conn = sqlite3.connect('study_tracker.db')
     df = pd.read_sql_query(f"SELECT * FROM {table_name}", conn)
     conn.close()
     return df
 
 def execute_sql(query):
-    """Выполняет SQL запрос"""
     conn = sqlite3.connect('study_tracker.db')
     try:
         df = pd.read_sql_query(query, conn)
@@ -345,13 +320,9 @@ def execute_sql(query):
         conn.close()
         return False, str(e)
 
-# Инициализация БД
 init_db()
 
-# === СИСТЕМА АВТОРИЗАЦИИ ===
-
 def login_page():
-    """Страница входа"""
     st.markdown("<h1 style='text-align: center;'>📚 Дневник Успеваемости</h1>", unsafe_allow_html=True)
     st.markdown("<p style='text-align: center; color: gray;'>Войдите в систему</p>", unsafe_allow_html=True)
     st.markdown("---")
@@ -384,15 +355,13 @@ def login_page():
                 st.warning("⚠️ Заполните все поля")
 
 def logout():
-    """Выход из системы"""
-    if st.sidebar.button(" Выйти", use_container_width=True):
+    if st.sidebar.button("🚪 Выйти", use_container_width=True):
         for key in ['logged_in', 'user_id', 'username', 'user_type', 'device_id', 'current_menu']:
             if key in st.session_state:
                 del st.session_state[key]
         st.rerun()
 
 def main_app():
-    """Основное приложение"""
     user_id = st.session_state['user_id']
     username = st.session_state['username']
     user_type = st.session_state.get('user_type', 'user')
@@ -407,15 +376,14 @@ def main_app():
     
     st.sidebar.markdown("---")
     
-    # Навигация
     menu_options = [
-        " Дашборд",
+        "📊 Дашборд",
         "➕ Добавить запись",
         "📋 Все записи",
         "📚 Мои предметы",
         "📅 Календарь",
         "📈 Аналитика",
-        "⚙️ Настройки профиля"
+        "️ Настройки профиля"
     ]
     
     if user_type == 'admin':
@@ -428,7 +396,6 @@ def main_app():
     if 'current_menu' not in st.session_state:
         st.session_state['current_menu'] = "📊 Дашборд"
     
-    # Защита от ошибки, если меню не в списке
     try:
         default_index = menu_options.index(st.session_state['current_menu'])
     except ValueError:
@@ -447,14 +414,13 @@ def main_app():
     st.sidebar.markdown("---")
     logout()
     
-    # === РАЗДЕЛ: ДАШБОРД ===
     if selected_menu == "📊 Дашборд":
         st.header("📊 Общая статистика")
         
         df = get_records(user_id)
         
         if df.empty:
-            st.warning(" Пока нет записей. Добавьте первую запись в разделе 'Добавить запись'!")
+            st.warning("📭 Пока нет записей. Добавьте первую запись в разделе 'Добавить запись'!")
         else:
             col1, col2, col3, col4 = st.columns(4)
             
@@ -470,8 +436,7 @@ def main_app():
             
             st.markdown("---")
             
-            # Простой список ближайших событий вместо календаря
-            st.subheader(" Ближайшие события")
+            st.subheader("📅 Ближайшие события")
             events_df = get_events(user_id)
             
             if events_df.empty:
@@ -481,7 +446,7 @@ def main_app():
                 upcoming = events_df[events_df['date'] >= datetime.now()].sort_values('date').head(5)
                 
                 if upcoming.empty:
-                    st.info("📭 Нет предстоящих событий")
+                    st.info(" Нет предстоящих событий")
                 else:
                     for _, event in upcoming.iterrows():
                         st.markdown(f"""
@@ -523,8 +488,7 @@ def main_app():
             fig_timeline.update_layout(height=400, xaxis_title="Дата", yaxis_title="Оценка")
             st.plotly_chart(fig_timeline, use_container_width=True)
     
-    # === РАЗДЕЛ: ДОБАВИТЬ ЗАПИСЬ ===
-    elif selected_menu == "➕ Добавить запись":
+    elif selected_menu == " Добавить запись":
         st.header("➕ Добавить новую запись")
         
         subjects_df = get_subjects(user_id)
@@ -539,7 +503,7 @@ def main_app():
                     date = st.date_input("📅 Дата", datetime.now())
                     subject_options = subjects_df['name'].tolist()
                     subject = st.selectbox("📚 Предмет", options=subject_options)
-                    topic = st.text_input(" Тема", placeholder="Например: Интегралы")
+                    topic = st.text_input("📝 Тема", placeholder="Например: Интегралы")
                 
                 with col2:
                     grade = st.number_input("⭐ Оценка", min_value=0.0, max_value=100.0, step=0.5)
@@ -557,7 +521,6 @@ def main_app():
                     else:
                         st.error("⚠️ Пожалуйста, заполните все обязательные поля")
     
-    # === РАЗДЕЛ: ВСЕ ЗАПИСИ ===
     elif selected_menu == " Все записи":
         st.header(" Все ваши записи")
         
@@ -589,7 +552,6 @@ def main_app():
                 mime='text/csv',
             )
     
-    # === РАЗДЕЛ: МОИ ПРЕДМЕТЫ ===
     elif selected_menu == "📚 Мои предметы":
         st.header("📚 Управление предметами")
         
@@ -614,7 +576,7 @@ def main_app():
                 color_name = st.selectbox("Цвет предмета", options=list(color_options.keys()))
                 color = color_options[color_name]
                 
-                submitted = st.form_submit_button("💾 Добавить предмет", type="primary", use_container_width=True)
+                submitted = st.form_submit_button(" Добавить предмет", type="primary", use_container_width=True)
                 
                 if submitted:
                     if new_subject:
@@ -628,7 +590,7 @@ def main_app():
                         st.warning("⚠️ Введите название предмета")
         
         with col2:
-            st.subheader(" Список предметов")
+            st.subheader("📋 Список предметов")
             if subjects_df.empty:
                 st.info("📭 Предметов пока нет")
             else:
@@ -647,7 +609,6 @@ def main_app():
                         </div>
                         """, unsafe_allow_html=True)
     
-    # === РАЗДЕЛ: КАЛЕНДАРЬ (простая таблица) ===
     elif selected_menu == "📅 Календарь":
         st.header("📅 Календарь событий")
         
@@ -660,7 +621,6 @@ def main_app():
             if events_df.empty:
                 st.info("📭 Событий пока нет")
             else:
-                # Добавляем кнопку удаления для каждого события
                 for idx, event in events_df.iterrows():
                     col_event, col_del = st.columns([5, 1])
                     with col_event:
@@ -680,14 +640,14 @@ def main_app():
         with col2:
             st.subheader("➕ Добавить событие")
             with st.form("add_event_form"):
-                event_date = st.date_input(" Дата", datetime.now())
+                event_date = st.date_input("📅 Дата", datetime.now())
                 event_title = st.text_input("📝 Название", placeholder="Например: Контрольная")
                 event_description = st.text_area("💬 Описание", placeholder="Дополнительная информация")
                 
                 color_options = {
                     "🔴 Красный": "#ef4444",
                     "🟠 Оранжевый": "#f97316",
-                    " Жёлтый": "#eab308",
+                    "🟡 Жёлтый": "#eab308",
                     "🟢 Зелёный": "#22c55e",
                     "🔵 Синий": "#3b82f6",
                     "🟣 Фиолетовый": "#a855f7"
@@ -706,7 +666,6 @@ def main_app():
                     else:
                         st.warning("️ Введите название события")
     
-    # === РАЗДЕЛ: АНАЛИТИКА ===
     elif selected_menu == "📈 Аналитика":
         st.header("📈 Подробная аналитика")
         
@@ -731,7 +690,7 @@ def main_app():
             
             st.markdown("---")
             
-            st.subheader(" Распределение оценок")
+            st.subheader("📊 Распределение оценок")
             fig_hist = px.histogram(df, x='grade', nbins=20, 
                                    title='Распределение всех оценок',
                                    color_discrete_sequence=['#636EFA'])
@@ -744,7 +703,6 @@ def main_app():
                                    color_continuous_scale="YlGnBu")
             st.plotly_chart(fig_heatmap, use_container_width=True)
     
-    # === РАЗДЕЛ: НАСТРОЙКИ ПРОФИЛЯ ===
     elif selected_menu == "️ Настройки профиля":
         st.header("⚙️ Настройки профиля")
         
@@ -755,13 +713,13 @@ def main_app():
             
             new_username = st.text_input("👤 Новый логин", value=username)
             new_password = st.text_input("🔒 Новый пароль", type="password")
-            confirm_password = st.text_input("🔒 Подтвердите пароль", type="password")
+            confirm_password = st.text_input(" Подтвердите пароль", type="password")
             
             submitted = st.form_submit_button("💾 Сохранить изменения", type="primary", use_container_width=True)
             
             if submitted:
                 if new_password != confirm_password:
-                    st.error("❌ Пароли не совпадают")
+                    st.error(" Пароли не совпадают")
                 elif len(new_password) < 4:
                     st.error("❌ Пароль должен быть не короче 4 символов")
                 else:
@@ -773,7 +731,6 @@ def main_app():
                     else:
                         st.error(f"❌ {message}")
     
-    # === РАЗДЕЛ: УСТРОЙСТВА (АДМИН) ===
     elif selected_menu == "📱 Устройства":
         st.header("📱 Управление устройствами")
         
@@ -784,7 +741,7 @@ def main_app():
         with col1:
             st.subheader(" Добавить устройство")
             with st.form("add_device_form"):
-                device_name = st.text_input(" Название устройства", placeholder="Например: Мой телефон")
+                device_name = st.text_input("📱 Название устройства", placeholder="Например: Мой телефон")
                 device_username = st.text_input(" Логин для устройства", placeholder="Например: phone_user")
                 device_password = st.text_input("🔒 Пароль для устройства", type="password")
                 
@@ -795,7 +752,7 @@ def main_app():
                         success, message = add_device(user_id, device_name, device_username, device_password)
                         if success:
                             st.success(f"✅ {message}")
-                            st.info(f" Данные для входа:\n- Логин: {device_username}\n- Пароль: {device_password}")
+                            st.info(f"📋 Данные для входа:\n- Логин: {device_username}\n- Пароль: {device_password}")
                             st.rerun()
                         else:
                             st.error(f"❌ {message}")
@@ -812,7 +769,7 @@ def main_app():
                     <div style='padding: 12px; margin: 8px 0; border-radius: 8px; 
                                 background-color: #f0f9ff; 
                                 border-left: 4px solid #3b82f6;'>
-                        <strong> {device['device_name']}</strong><br>
+                        <strong>📱 {device['device_name']}</strong><br>
                         <small>Логин: {device['username']}</small><br>
                         <small>Создано: {device['created_at']}</small><br>
                         <small>Последний вход: {device['last_login'] or 'Никогда'}</small>
@@ -824,7 +781,6 @@ def main_app():
                         st.success("✅ Устройство удалено")
                         st.rerun()
     
-    # === РАЗДЕЛ: БАЗА ДАННЫХ (АДМИН) ===
     elif selected_menu == "🗄️ База данных":
         st.header("🗄️ Просмотр базы данных")
         
@@ -864,16 +820,15 @@ def main_app():
                 else:
                     st.error(f"❌ Ошибка: {result}")
             else:
-                st.warning("⚠️ Введите SQL запрос")
+                st.warning("️ Введите SQL запрос")
     
-    # === РАЗДЕЛ: ЛОГИ ВХОДОВ (АДМИН) ===
     elif selected_menu == "📜 Логи входов":
         st.header("📜 История входов")
         
         logs_df = get_login_logs(user_id)
         
         if logs_df.empty:
-            st.info(" Логи входов пусты")
+            st.info("📭 Логи входов пусты")
         else:
             st.dataframe(logs_df, use_container_width=True, hide_index=True)
             
@@ -895,8 +850,6 @@ def main_app():
     st.markdown("---")
     st.markdown("<div style='text-align: center; color: gray;'>Создано с ❤️ на Streamlit</div>", 
                unsafe_allow_html=True)
-
-# === ГЛАВНАЯ ЛОГИКА ===
 
 if 'logged_in' not in st.session_state:
     st.session_state['logged_in'] = False
