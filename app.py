@@ -5,8 +5,8 @@ from datetime import datetime
 import sqlite3
 
 st.set_page_config(
-    page_title="Study Tracker",
-    page_icon="📚",
+    page_title="Дневник Успеваемости",
+    page_icon="",
     layout="wide"
 )
 
@@ -15,24 +15,42 @@ def init_db():
     c = conn.cursor()
     
     c.execute('''CREATE TABLE IF NOT EXISTS users (
-        id INTEGER PRIMARY KEY, username TEXT UNIQUE, password TEXT,
-        created_at TEXT, is_admin INTEGER DEFAULT 0)''')
+        id INTEGER PRIMARY KEY AUTOINCREMENT, 
+        username TEXT UNIQUE, 
+        password TEXT,
+        created_at TEXT, 
+        is_admin INTEGER DEFAULT 0)''')
     
     c.execute('''CREATE TABLE IF NOT EXISTS subjects (
-        id INTEGER PRIMARY KEY, user_id INTEGER, name TEXT,
-        color TEXT, UNIQUE(user_id, name))''')
+        id INTEGER PRIMARY KEY AUTOINCREMENT, 
+        user_id INTEGER, 
+        name TEXT,
+        color TEXT, 
+        UNIQUE(user_id, name))''')
     
     c.execute('''CREATE TABLE IF NOT EXISTS records (
-        id INTEGER PRIMARY KEY, user_id INTEGER, date TEXT,
-        subject TEXT, topic TEXT, grade REAL, hours REAL, comment TEXT)''')
+        id INTEGER PRIMARY KEY AUTOINCREMENT, 
+        user_id INTEGER, 
+        date TEXT,
+        record_type TEXT,
+        subject TEXT, 
+        topic TEXT, 
+        grade REAL, 
+        hours REAL, 
+        comment TEXT,
+        status TEXT)''')
     
     c.execute('''CREATE TABLE IF NOT EXISTS events (
-        id INTEGER PRIMARY KEY, user_id INTEGER, date TEXT,
-        title TEXT, description TEXT, color TEXT)''')
+        id INTEGER PRIMARY KEY AUTOINCREMENT, 
+        user_id INTEGER, 
+        date TEXT,
+        title TEXT, 
+        description TEXT, 
+        color TEXT)''')
     
     c.execute('SELECT COUNT(*) FROM users WHERE username = ?', ('admin',))
     if c.fetchone()[0] == 0:
-        c.execute('INSERT INTO users VALUES (1, ?, ?, ?, 1)',
+        c.execute('INSERT INTO users (username, password, created_at, is_admin) VALUES (?, ?, ?, 1)',
                  ('admin', 'admin', datetime.now().strftime("%Y-%m-%d")))
     
     conn.commit()
@@ -47,17 +65,44 @@ def verify_user(username, password):
     conn.close()
     return user
 
+def create_user(admin_id, username, password, is_admin=0):
+    conn = sqlite3.connect('study_tracker.db')
+    try:
+        conn.execute('INSERT INTO users (username, password, created_at, is_admin) VALUES (?, ?, ?, ?)',
+                    (username, password, datetime.now().strftime("%Y-%m-%d"), is_admin))
+        conn.commit()
+        conn.close()
+        return True, "Пользователь создан!"
+    except sqlite3.IntegrityError:
+        conn.close()
+        return False, "Такой логин уже существует"
+
+def get_users():
+    conn = sqlite3.connect('study_tracker.db')
+    df = pd.read_sql_query("SELECT id, username, is_admin, created_at FROM users", conn)
+    conn.close()
+    return df
+
+def delete_user(user_id):
+    conn = sqlite3.connect('study_tracker.db')
+    conn.execute('DELETE FROM users WHERE id = ?', (user_id,))
+    conn.execute('DELETE FROM subjects WHERE user_id = ?', (user_id,))
+    conn.execute('DELETE FROM records WHERE user_id = ?', (user_id,))
+    conn.execute('DELETE FROM events WHERE user_id = ?', (user_id,))
+    conn.commit()
+    conn.close()
+
 def add_subject(user_id, name, color):
     conn = sqlite3.connect('study_tracker.db')
     try:
         conn.execute('INSERT INTO subjects (user_id, name, color) VALUES (?, ?, ?)',
                     (user_id, name, color))
         conn.commit()
-        return True
-    except:
-        return False
-    finally:
         conn.close()
+        return True, "Предмет добавлен!"
+    except sqlite3.IntegrityError:
+        conn.close()
+        return False, "Такой предмет уже существует"
 
 def get_subjects(user_id):
     conn = sqlite3.connect('study_tracker.db')
@@ -65,11 +110,17 @@ def get_subjects(user_id):
     conn.close()
     return df
 
-def add_record(user_id, date, subject, topic, grade, hours, comment):
+def delete_subject(user_id, subject_name):
     conn = sqlite3.connect('study_tracker.db')
-    conn.execute('''INSERT INTO records (user_id, date, subject, topic, grade, hours, comment)
-                   VALUES (?, ?, ?, ?, ?, ?, ?)''',
-                (user_id, date, subject, topic, grade, hours, comment))
+    conn.execute('DELETE FROM subjects WHERE user_id = ? AND name = ?', (user_id, subject_name))
+    conn.commit()
+    conn.close()
+
+def add_record(user_id, date, record_type, subject, topic, grade, hours, comment, status=None):
+    conn = sqlite3.connect('study_tracker.db')
+    conn.execute('''INSERT INTO records (user_id, date, record_type, subject, topic, grade, hours, comment, status)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)''',
+                (user_id, date, record_type, subject, topic, grade, hours, comment, status))
     conn.commit()
     conn.close()
 
@@ -78,6 +129,18 @@ def get_records(user_id):
     df = pd.read_sql_query("SELECT * FROM records WHERE user_id = ?", conn, params=(user_id,))
     conn.close()
     return df
+
+def update_record_status(record_id, status):
+    conn = sqlite3.connect('study_tracker.db')
+    conn.execute('UPDATE records SET status = ? WHERE id = ?', (status, record_id))
+    conn.commit()
+    conn.close()
+
+def delete_record(record_id):
+    conn = sqlite3.connect('study_tracker.db')
+    conn.execute('DELETE FROM records WHERE id = ?', (record_id,))
+    conn.commit()
+    conn.close()
 
 def add_event(user_id, date, title, description, color):
     conn = sqlite3.connect('study_tracker.db')
@@ -93,118 +156,353 @@ def get_events(user_id):
     conn.close()
     return df
 
+def delete_event(event_id):
+    conn = sqlite3.connect('study_tracker.db')
+    conn.execute('DELETE FROM events WHERE id = ?', (event_id,))
+    conn.commit()
+    conn.close()
+
 init_db()
 
-# Простая авторизация через session_state
+# Инициализация сессии
 if 'logged_in' not in st.session_state:
     st.session_state.logged_in = False
 if 'user_id' not in st.session_state:
     st.session_state.user_id = None
-if 'page' not in st.session_state:
-    st.session_state.page = 'login'
+if 'username' not in st.session_state:
+    st.session_state.username = None
+if 'is_admin' not in st.session_state:
+    st.session_state.is_admin = False
 
+# === СТРАНИЦА ВХОДА ===
 if not st.session_state.logged_in:
-    st.title("Study Tracker")
+    st.title("📚 Дневник Успеваемости")
+    st.markdown("Войдите в систему")
+    st.markdown("---")
     
-    username = st.text_input("Username")
-    password = st.text_input("Password", type="password")
+    username = st.text_input(" Логин")
+    password = st.text_input("🔒 Пароль", type="password")
     
-    if st.button("Login"):
-        user = verify_user(username, password)
-        if user:
-            st.session_state.logged_in = True
-            st.session_state.user_id = user[0]
-            st.session_state.page = 'dashboard'
-            st.rerun()
-        else:
-            st.error("Invalid credentials")
+    col1, col2 = st.columns(2)
+    with col1:
+        if st.button("Войти", type="primary", use_container_width=True):
+            user = verify_user(username, password)
+            if user:
+                st.session_state.logged_in = True
+                st.session_state.user_id = user[0]
+                st.session_state.username = username
+                st.session_state.is_admin = bool(user[1])
+                st.rerun()
+            else:
+                st.error("❌ Неверный логин или пароль")
+
+# === ОСНОВНОЕ ПРИЛОЖЕНИЕ ===
 else:
     # Боковое меню
-    page = st.sidebar.selectbox("Menu", 
-        ["Dashboard", "Add Record", "Subjects", "Events", "Logout"])
+    menu_items = ["📊 Главная", "➕ Добавить запись", " Предметы", "📅 События", "📋 Все записи"]
     
-    if page == "Logout":
+    if st.session_state.is_admin:
+        menu_items.append("👥 Управление пользователями")
+    
+    menu_items.append("🚪 Выйти")
+    
+    page = st.sidebar.selectbox("Меню", menu_items)
+    
+    if page == "🚪 Выйти":
         st.session_state.logged_in = False
         st.session_state.user_id = None
-        st.session_state.page = 'login'
+        st.session_state.username = None
+        st.session_state.is_admin = False
         st.rerun()
     
-    elif page == "Dashboard":
-        st.title("Dashboard")
+    elif page == " Главная":
+        st.title(f" Привет, {st.session_state.username}!")
+        st.markdown("---")
+        
         df = get_records(st.session_state.user_id)
         
         if not df.empty:
-            col1, col2, col3 = st.columns(3)
-            col1.metric("Records", len(df))
-            col2.metric("Avg Grade", f"{df['grade'].mean():.1f}")
-            col3.metric("Hours", f"{df['hours'].sum():.1f}")
+            # Статистика
+            col1, col2, col3, col4 = st.columns(4)
+            col1.metric("Всего записей", len(df))
             
-            st.subheader("Grades by Subject")
-            fig = px.bar(df.groupby('subject')['grade'].mean().reset_index(),
-                        x='subject', y='grade')
-            st.plotly_chart(fig, use_container_width=True)
+            grades = df[df['record_type'] == 'Оценка']['grade'].dropna()
+            if not grades.empty:
+                col2.metric("Средний балл", f"{grades.mean():.1f}")
+            else:
+                col2.metric("Средний балл", "—")
+            
+            hours = df['hours'].dropna()
+            if not hours.empty:
+                col3.metric("Всего часов", f"{hours.sum():.1f}")
+            else:
+                col3.metric("Всего часов", "—")
+            
+            debts = df[df['record_type'] == 'Долг']
+            pending_debts = debts[debts['status'] != 'Выполнено']
+            col4.metric("Долги", f"{len(pending_debts)}")
+            
+            st.markdown("---")
+            
+            # Графики
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                st.subheader("📊 Оценки по предметам")
+                grades_df = df[df['record_type'] == 'Оценка']
+                if not grades_df.empty:
+                    subject_avg = grades_df.groupby('subject')['grade'].mean().reset_index()
+                    fig = px.bar(subject_avg, x='subject', y='grade', color='grade',
+                                color_continuous_scale='Viridis')
+                    fig.update_layout(height=300)
+                    st.plotly_chart(fig, use_container_width=True)
+                else:
+                    st.info("Нет оценок")
+            
+            with col2:
+                st.subheader("⏰ Время по предметам")
+                hours_df = df[df['hours'].notna()]
+                if not hours_df.empty:
+                    subject_hours = hours_df.groupby('subject')['hours'].sum().reset_index()
+                    fig = px.pie(subject_hours, values='hours', names='subject')
+                    fig.update_layout(height=300)
+                    st.plotly_chart(fig, use_container_width=True)
+                else:
+                    st.info("Нет данных о времени")
+            
+            # Долги
+            if not debts.empty:
+                st.subheader("⚠️ Долги")
+                for _, debt in debts.iterrows():
+                    status = debt['status'] if debt['status'] else "В процессе"
+                    color = "green" if status == "Выполнено" else "orange"
+                    st.markdown(f"""
+                    <div style='padding: 10px; margin: 5px 0; border-radius: 8px; 
+                                background-color: {color}20; border-left: 4px solid {color};'>
+                        <strong>{debt['subject']}</strong>: {debt['topic']} 
+                        <span style='color: {color};'>[{status}]</span>
+                        <br><small>{debt['date']}</small>
+                    </div>
+                    """, unsafe_allow_html=True)
         else:
-            st.info("No records yet")
+            st.info("📭 Пока нет записей. Добавьте первую запись!")
     
-    elif page == "Add Record":
-        st.title("Add Record")
+    elif page == "➕ Добавить запись":
+        st.title(" Добавить запись")
+        
         subjects_df = get_subjects(st.session_state.user_id)
         
         if subjects_df.empty:
-            st.warning("Add subjects first!")
+            st.warning("⚠️ Сначала добавьте предметы в разделе 'Предметы'")
         else:
+            record_type = st.radio("Тип записи", ["Оценка", "Долг", "Время"], horizontal=True)
+            
             with st.form("record_form"):
                 col1, col2 = st.columns(2)
-                with col1:
-                    date = st.date_input("Date", datetime.now())
-                    subject = st.selectbox("Subject", subjects_df['name'].tolist())
-                    topic = st.text_input("Topic")
-                with col2:
-                    grade = st.number_input("Grade", 0.0, 100.0)
-                    hours = st.number_input("Hours", 0.0, 24.0)
-                    comment = st.text_area("Comment")
                 
-                if st.form_submit_button("Save"):
-                    add_record(st.session_state.user_id, 
-                              date.strftime("%Y-%m-%d"), subject, topic,
-                              grade, hours, comment)
-                    st.success("Saved!")
+                with col1:
+                    date = st.date_input(" Дата", datetime.now())
+                    subject = st.selectbox("📚 Предмет", subjects_df['name'].tolist())
+                    topic = st.text_input(" Тема")
+                
+                with col2:
+                    # Показываем поля в зависимости от типа
+                    if record_type == "Оценка":
+                        grade = st.number_input("⭐ Оценка", 0.0, 100.0, value=None)
+                        hours = st.number_input("⏱️ Часы (необязательно)", 0.0, 24.0, value=None)
+                    elif record_type == "Долг":
+                        grade = None
+                        hours = None
+                        st.info("Для долга оценка и время не требуются")
+                    else:  # Время
+                        grade = None
+                        hours = st.number_input("⏱️ Часы", 0.0, 24.0, value=None)
+                    
+                    comment = st.text_area("💬 Комментарий")
+                
+                # Статус для долгов
+                status = None
+                if record_type == "Долг":
+                    status = st.selectbox("Статус", ["В процессе", "Выполнено"])
+                
+                submitted = st.form_submit_button("💾 Сохранить", type="primary", use_container_width=True)
+                
+                if submitted:
+                    if subject and topic:
+                        add_record(st.session_state.user_id, 
+                                  date.strftime("%Y-%m-%d"), record_type, subject, topic,
+                                  grade, hours, comment, status)
+                        st.success("✅ Запись добавлена!")
+                    else:
+                        st.error("⚠️ Заполните предмет и тему")
     
-    elif page == "Subjects":
-        st.title("Subjects")
+    elif page == "📚 Предметы":
+        st.title("📚 Управление предметами")
         
         col1, col2 = st.columns(2)
+        
         with col1:
+            st.subheader("➕ Добавить предмет")
             with st.form("subject_form"):
-                name = st.text_input("Subject name")
-                color = st.color_picker("Color", "#3b82f6")
-                if st.form_submit_button("Add"):
-                    if add_subject(st.session_state.user_id, name, color):
-                        st.success("Added!")
+                name = st.text_input("Название предмета")
+                color = st.color_picker("Цвет", "#3b82f6")
+                if st.form_submit_button("Добавить", type="primary", use_container_width=True):
+                    if name:
+                        success, msg = add_subject(st.session_state.user_id, name, color)
+                        if success:
+                            st.success(f"✅ {msg}")
+                        else:
+                            st.error(f"❌ {msg}")
                     else:
-                        st.error("Already exists")
+                        st.warning("Введите название")
         
         with col2:
+            st.subheader("📋 Список предметов")
             subjects_df = get_subjects(st.session_state.user_id)
             if not subjects_df.empty:
-                st.dataframe(subjects_df, hide_index=True)
+                for _, subj in subjects_df.iterrows():
+                    col_del, col_name = st.columns([1, 5])
+                    with col_del:
+                        if st.button("🗑️", key=f"del_subj_{subj['id']}"):
+                            delete_subject(st.session_state.user_id, subj['name'])
+                            st.rerun()
+                    with col_name:
+                        st.markdown(f"""
+                        <div style='padding: 8px; margin: 5px 0; border-radius: 6px; 
+                                    background-color: {subj['color']}20; 
+                                    border-left: 4px solid {subj['color']};'>
+                            <strong>{subj['name']}</strong>
+                        </div>
+                        """, unsafe_allow_html=True)
+            else:
+                st.info("Нет предметов")
     
-    elif page == "Events":
-        st.title("Events")
+    elif page == "📅 События":
+        st.title("📅 События")
         
         col1, col2 = st.columns(2)
+        
         with col1:
+            st.subheader("➕ Добавить событие")
             with st.form("event_form"):
-                date = st.date_input("Date", datetime.now())
-                title = st.text_input("Title")
-                desc = st.text_area("Description")
-                color = st.color_picker("Color", "#3b82f6")
-                if st.form_submit_button("Add"):
-                    add_event(st.session_state.user_id, 
-                             date.strftime("%Y-%m-%d"), title, desc, color)
-                    st.success("Added!")
+                date = st.date_input("📅 Дата", datetime.now())
+                title = st.text_input("📝 Название")
+                desc = st.text_area("💬 Описание")
+                color = st.color_picker(" Цвет", "#3b82f6")
+                if st.form_submit_button("Добавить", type="primary", use_container_width=True):
+                    if title:
+                        add_event(st.session_state.user_id, 
+                                 date.strftime("%Y-%m-%d"), title, desc, color)
+                        st.success("✅ Событие добавлено!")
+                    else:
+                        st.warning("Введите название")
         
         with col2:
+            st.subheader(" Список событий")
             events_df = get_events(st.session_state.user_id)
             if not events_df.empty:
-                st.dataframe(events_df, hide_index=True)
+                for _, event in events_df.iterrows():
+                    col_ev, col_del = st.columns([5, 1])
+                    with col_ev:
+                        st.markdown(f"""
+                        <div style='padding: 8px; margin: 5px 0; border-radius: 6px; 
+                                    background-color: {event['color']}20; 
+                                    border-left: 4px solid {event['color']};'>
+                            <strong>{event['date']}</strong> - {event['title']}
+                            <br><small>{event['description']}</small>
+                        </div>
+                        """, unsafe_allow_html=True)
+                    with col_del:
+                        if st.button("🗑️", key=f"del_ev_{event['id']}"):
+                            delete_event(event['id'])
+                            st.rerun()
+            else:
+                st.info("Нет событий")
+    
+    elif page == "📋 Все записи":
+        st.title("📋 Все записи")
+        
+        df = get_records(st.session_state.user_id)
+        
+        if df.empty:
+            st.info("📭 Записей пока нет")
+        else:
+            # Фильтры
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                type_filter = st.multiselect("Тип", ["Оценка", "Долг", "Время"])
+            with col2:
+                subject_filter = st.multiselect("Предмет", df['subject'].unique())
+            with col3:
+                status_filter = st.multiselect("Статус", ["В процессе", "Выполнено"])
+            
+            if type_filter:
+                df = df[df['record_type'].isin(type_filter)]
+            if subject_filter:
+                df = df[df['subject'].isin(subject_filter)]
+            if status_filter:
+                df = df[df['status'].isin(status_filter)]
+            
+            st.dataframe(df.sort_values('date', ascending=False), 
+                        use_container_width=True, hide_index=True)
+            
+            # Кнопки действий для каждой записи
+            st.subheader("Управление записями")
+            for _, record in df.iterrows():
+                col_rec, col_act = st.columns([4, 1])
+                with col_rec:
+                    icon = "⭐" if record['record_type'] == "Оценка" else "⚠️" if record['record_type'] == "Долг" else "⏰"
+                    st.markdown(f"{icon} **{record['subject']}**: {record['topic']} ({record['date']})")
+                with col_act:
+                    if record['record_type'] == "Долг" and record['status'] != "Выполнено":
+                        if st.button("✅", key=f"done_{record['id']}"):
+                            update_record_status(record['id'], "Выполнено")
+                            st.rerun()
+                    if st.button("🗑️", key=f"del_{record['id']}"):
+                        delete_record(record['id'])
+                        st.rerun()
+    
+    elif page == "👥 Управление пользователями" and st.session_state.is_admin:
+        st.title("👥 Управление пользователями")
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            st.subheader(" Создать пользователя")
+            with st.form("create_user_form"):
+                new_username = st.text_input("Логин")
+                new_password = st.text_input("Пароль", type="password")
+                is_admin = st.checkbox("Сделать администратором")
+                if st.form_submit_button("Создать", type="primary", use_container_width=True):
+                    if new_username and new_password:
+                        success, msg = create_user(st.session_state.user_id, 
+                                                  new_username, new_password, 
+                                                  1 if is_admin else 0)
+                        if success:
+                            st.success(f"✅ {msg}")
+                        else:
+                            st.error(f"❌ {msg}")
+                    else:
+                        st.warning("Заполните все поля")
+        
+        with col2:
+            st.subheader(" Список пользователей")
+            users_df = get_users()
+            if not users_df.empty:
+                for _, user in users_df.iterrows():
+                    role = "👑 Админ" if user['is_admin'] else "👤 Пользователь"
+                    col_user, col_del = st.columns([5, 1])
+                    with col_user:
+                        st.markdown(f"""
+                        <div style='padding: 8px; margin: 5px 0; border-radius: 6px; 
+                                    background-color: #f0f9ff; 
+                                    border-left: 4px solid #3b82f6;'>
+                            <strong>{user['username']}</strong> {role}
+                            <br><small>Создан: {user['created_at']}</small>
+                        </div>
+                        """, unsafe_allow_html=True)
+                    with col_del:
+                        if user['id'] != st.session_state.user_id:
+                            if st.button("️", key=f"del_user_{user['id']}"):
+                                delete_user(user['id'])
+                                st.rerun()
