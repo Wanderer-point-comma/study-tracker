@@ -6,7 +6,7 @@ import sqlite3
 
 st.set_page_config(
     page_title="Дневник Успеваемости",
-    page_icon="",
+    page_icon="📚",
     layout="wide"
 )
 
@@ -14,6 +14,7 @@ def init_db():
     conn = sqlite3.connect('study_tracker.db')
     c = conn.cursor()
     
+    # Создаём таблицы если нет
     c.execute('''CREATE TABLE IF NOT EXISTS users (
         id INTEGER PRIMARY KEY AUTOINCREMENT, 
         username TEXT UNIQUE, 
@@ -32,13 +33,11 @@ def init_db():
         id INTEGER PRIMARY KEY AUTOINCREMENT, 
         user_id INTEGER, 
         date TEXT,
-        record_type TEXT,
         subject TEXT, 
         topic TEXT, 
         grade REAL, 
         hours REAL, 
-        comment TEXT,
-        status TEXT)''')
+        comment TEXT)''')
     
     c.execute('''CREATE TABLE IF NOT EXISTS events (
         id INTEGER PRIMARY KEY AUTOINCREMENT, 
@@ -48,6 +47,18 @@ def init_db():
         description TEXT, 
         color TEXT)''')
     
+    # Миграция: добавляем новые колонки если их нет
+    try:
+        c.execute("ALTER TABLE records ADD COLUMN record_type TEXT DEFAULT 'Оценка'")
+    except:
+        pass
+    
+    try:
+        c.execute("ALTER TABLE records ADD COLUMN status TEXT")
+    except:
+        pass
+    
+    # Создаём админа если нет
     c.execute('SELECT COUNT(*) FROM users WHERE username = ?', ('admin',))
     if c.fetchone()[0] == 0:
         c.execute('INSERT INTO users (username, password, created_at, is_admin) VALUES (?, ?, ?, 1)',
@@ -127,6 +138,11 @@ def add_record(user_id, date, record_type, subject, topic, grade, hours, comment
 def get_records(user_id):
     conn = sqlite3.connect('study_tracker.db')
     df = pd.read_sql_query("SELECT * FROM records WHERE user_id = ?", conn, params=(user_id,))
+    # Заполняем NaN для старых записей
+    if 'record_type' not in df.columns:
+        df['record_type'] = 'Оценка'
+    if 'status' not in df.columns:
+        df['status'] = None
     conn.close()
     return df
 
@@ -180,25 +196,22 @@ if not st.session_state.logged_in:
     st.markdown("Войдите в систему")
     st.markdown("---")
     
-    username = st.text_input(" Логин")
+    username = st.text_input("👤 Логин")
     password = st.text_input("🔒 Пароль", type="password")
     
-    col1, col2 = st.columns(2)
-    with col1:
-        if st.button("Войти", type="primary", use_container_width=True):
-            user = verify_user(username, password)
-            if user:
-                st.session_state.logged_in = True
-                st.session_state.user_id = user[0]
-                st.session_state.username = username
-                st.session_state.is_admin = bool(user[1])
-                st.rerun()
-            else:
-                st.error("❌ Неверный логин или пароль")
+    if st.button("Войти", type="primary", use_container_width=True):
+        user = verify_user(username, password)
+        if user:
+            st.session_state.logged_in = True
+            st.session_state.user_id = user[0]
+            st.session_state.username = username
+            st.session_state.is_admin = bool(user[1])
+            st.rerun()
+        else:
+            st.error(" Неверный логин или пароль")
 
 # === ОСНОВНОЕ ПРИЛОЖЕНИЕ ===
 else:
-    # Боковое меню
     menu_items = ["📊 Главная", "➕ Добавить запись", " Предметы", "📅 События", "📋 Все записи"]
     
     if st.session_state.is_admin:
@@ -215,14 +228,13 @@ else:
         st.session_state.is_admin = False
         st.rerun()
     
-    elif page == " Главная":
-        st.title(f" Привет, {st.session_state.username}!")
+    elif page == "📊 Главная":
+        st.title(f"👋 Привет, {st.session_state.username}!")
         st.markdown("---")
         
         df = get_records(st.session_state.user_id)
         
         if not df.empty:
-            # Статистика
             col1, col2, col3, col4 = st.columns(4)
             col1.metric("Всего записей", len(df))
             
@@ -244,7 +256,6 @@ else:
             
             st.markdown("---")
             
-            # Графики
             col1, col2 = st.columns(2)
             
             with col1:
@@ -270,11 +281,10 @@ else:
                 else:
                     st.info("Нет данных о времени")
             
-            # Долги
             if not debts.empty:
                 st.subheader("⚠️ Долги")
                 for _, debt in debts.iterrows():
-                    status = debt['status'] if debt['status'] else "В процессе"
+                    status = debt.get('status') if pd.notna(debt.get('status')) else "В процессе"
                     color = "green" if status == "Выполнено" else "orange"
                     st.markdown(f"""
                     <div style='padding: 10px; margin: 5px 0; border-radius: 8px; 
@@ -288,12 +298,12 @@ else:
             st.info("📭 Пока нет записей. Добавьте первую запись!")
     
     elif page == "➕ Добавить запись":
-        st.title(" Добавить запись")
+        st.title("➕ Добавить запись")
         
         subjects_df = get_subjects(st.session_state.user_id)
         
         if subjects_df.empty:
-            st.warning("⚠️ Сначала добавьте предметы в разделе 'Предметы'")
+            st.warning("️ Сначала добавьте предметы в разделе ' Предметы'")
         else:
             record_type = st.radio("Тип записи", ["Оценка", "Долг", "Время"], horizontal=True)
             
@@ -301,12 +311,11 @@ else:
                 col1, col2 = st.columns(2)
                 
                 with col1:
-                    date = st.date_input(" Дата", datetime.now())
-                    subject = st.selectbox("📚 Предмет", subjects_df['name'].tolist())
-                    topic = st.text_input(" Тема")
+                    date = st.date_input("📅 Дата", datetime.now())
+                    subject = st.selectbox(" Предмет", subjects_df['name'].tolist())
+                    topic = st.text_input("📝 Тема")
                 
                 with col2:
-                    # Показываем поля в зависимости от типа
                     if record_type == "Оценка":
                         grade = st.number_input("⭐ Оценка", 0.0, 100.0, value=None)
                         hours = st.number_input("⏱️ Часы (необязательно)", 0.0, 24.0, value=None)
@@ -314,13 +323,12 @@ else:
                         grade = None
                         hours = None
                         st.info("Для долга оценка и время не требуются")
-                    else:  # Время
+                    else:
                         grade = None
                         hours = st.number_input("⏱️ Часы", 0.0, 24.0, value=None)
                     
                     comment = st.text_area("💬 Комментарий")
                 
-                # Статус для долгов
                 status = None
                 if record_type == "Долг":
                     status = st.selectbox("Статус", ["В процессе", "Выполнено"])
@@ -334,7 +342,7 @@ else:
                                   grade, hours, comment, status)
                         st.success("✅ Запись добавлена!")
                     else:
-                        st.error("⚠️ Заполните предмет и тему")
+                        st.error("️ Заполните предмет и тему")
     
     elif page == "📚 Предметы":
         st.title("📚 Управление предметами")
@@ -383,12 +391,12 @@ else:
         col1, col2 = st.columns(2)
         
         with col1:
-            st.subheader("➕ Добавить событие")
+            st.subheader(" Добавить событие")
             with st.form("event_form"):
                 date = st.date_input("📅 Дата", datetime.now())
                 title = st.text_input("📝 Название")
                 desc = st.text_area("💬 Описание")
-                color = st.color_picker(" Цвет", "#3b82f6")
+                color = st.color_picker("🎨 Цвет", "#3b82f6")
                 if st.form_submit_button("Добавить", type="primary", use_container_width=True):
                     if title:
                         add_event(st.session_state.user_id, 
@@ -398,7 +406,7 @@ else:
                         st.warning("Введите название")
         
         with col2:
-            st.subheader(" Список событий")
+            st.subheader("📋 Список событий")
             events_df = get_events(st.session_state.user_id)
             if not events_df.empty:
                 for _, event in events_df.iterrows():
@@ -427,7 +435,6 @@ else:
         if df.empty:
             st.info("📭 Записей пока нет")
         else:
-            # Фильтры
             col1, col2, col3 = st.columns(3)
             with col1:
                 type_filter = st.multiselect("Тип", ["Оценка", "Долг", "Время"])
@@ -446,15 +453,17 @@ else:
             st.dataframe(df.sort_values('date', ascending=False), 
                         use_container_width=True, hide_index=True)
             
-            # Кнопки действий для каждой записи
             st.subheader("Управление записями")
             for _, record in df.iterrows():
                 col_rec, col_act = st.columns([4, 1])
                 with col_rec:
-                    icon = "⭐" if record['record_type'] == "Оценка" else "⚠️" if record['record_type'] == "Долг" else "⏰"
+                    rtype = record.get('record_type', 'Оценка')
+                    icon = "⭐" if rtype == "Оценка" else "⚠️" if rtype == "Долг" else "⏰"
                     st.markdown(f"{icon} **{record['subject']}**: {record['topic']} ({record['date']})")
                 with col_act:
-                    if record['record_type'] == "Долг" and record['status'] != "Выполнено":
+                    rtype = record.get('record_type', 'Оценка')
+                    status = record.get('status')
+                    if rtype == "Долг" and status != "Выполнено":
                         if st.button("✅", key=f"done_{record['id']}"):
                             update_record_status(record['id'], "Выполнено")
                             st.rerun()
@@ -468,7 +477,7 @@ else:
         col1, col2 = st.columns(2)
         
         with col1:
-            st.subheader(" Создать пользователя")
+            st.subheader("➕ Создать пользователя")
             with st.form("create_user_form"):
                 new_username = st.text_input("Логин")
                 new_password = st.text_input("Пароль", type="password")
@@ -486,11 +495,11 @@ else:
                         st.warning("Заполните все поля")
         
         with col2:
-            st.subheader(" Список пользователей")
+            st.subheader("📋 Список пользователей")
             users_df = get_users()
             if not users_df.empty:
                 for _, user in users_df.iterrows():
-                    role = "👑 Админ" if user['is_admin'] else "👤 Пользователь"
+                    role = "👑 Админ" if user['is_admin'] else " Пользователь"
                     col_user, col_del = st.columns([5, 1])
                     with col_user:
                         st.markdown(f"""
@@ -503,6 +512,6 @@ else:
                         """, unsafe_allow_html=True)
                     with col_del:
                         if user['id'] != st.session_state.user_id:
-                            if st.button("️", key=f"del_user_{user['id']}"):
+                            if st.button("🗑️", key=f"del_user_{user['id']}"):
                                 delete_user(user['id'])
                                 st.rerun()
