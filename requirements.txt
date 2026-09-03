@@ -1,4 +1,4 @@
-   streamlit
-   pandas
-   plotly
-   streamlit-calendar
+streamlit==1.32.0
+pandas==2.1.4
+plotly==5.18.0
+streamlit-calendar==1.2.0
