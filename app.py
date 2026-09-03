@@ -4,7 +4,7 @@ import plotly.express as px
 from datetime import datetime
 import sqlite3
 
-st.set_page_config(page_title="Дневник", page_icon="", layout="wide")
+st.set_page_config(page_title="Дневник", page_icon="📚", layout="wide")
 
 def db():
     conn = sqlite3.connect('study.db')
@@ -43,6 +43,8 @@ db()
 
 if 'logged_in' not in st.session_state:
     st.session_state.logged_in = False
+if 'page' not in st.session_state:
+    st.session_state.page = '📊 Главная'
 
 if not st.session_state.logged_in:
     st.title("📚 Дневник")
@@ -55,18 +57,23 @@ if not st.session_state.logged_in:
             st.session_state.user_id = user[0][0]
             st.session_state.username = username
             st.session_state.is_admin = bool(user[0][1])
-            st.session_state.page = 'home'
             st.rerun()
         else:
             st.error("Неверный логин или пароль")
 else:
-    page = st.sidebar.radio("Меню", ["📊 Главная", "➕ Запись", "📚 Предметы", " События", "📋 Записи", "👥 Пользователи"] if st.session_state.is_admin else [" Главная", "➕ Запись", " Предметы", "📅 События", "📋 Записи", " Выйти"])
+    menu = ["📊 Главная", " Запись", "📚 Предметы", "📅 События", "📋 Записи"]
+    if st.session_state.is_admin:
+        menu.append("👥 Пользователи")
+    menu.append("🚪 Выйти")
+    
+    page = st.sidebar.radio("Меню", menu, index=menu.index(st.session_state.page) if st.session_state.page in menu else 0)
+    st.session_state.page = page
     
     if page == "🚪 Выйти":
         st.session_state.clear()
         st.rerun()
     
-    elif page == "📊 Главная":
+    elif page == " Главная":
         st.title(f"Привет, {st.session_state.username}!")
         df = get_df("SELECT * FROM records WHERE user_id = ?", (st.session_state.user_id,))
         subjects = get_df("SELECT * FROM subjects WHERE user_id = ?", (st.session_state.user_id,))
@@ -90,7 +97,7 @@ else:
                 
                 m1, m2, m3, m4 = st.columns(4)
                 m1.metric("⭐ Балл", f"{g.mean():.1f}" if not g.empty else "—", f"{len(g)} оценок")
-                m2.metric("⏰ Часы", f"{h.sum():.1f}" if not h.empty else "—", f"{len(h)} записей")
+                m2.metric(" Часы", f"{h.sum():.1f}" if not h.empty else "—", f"{len(h)} записей")
                 m3.metric("⚠️ Долги", f"{len(d[d['status'] != 'Выполнено'])}", f"из {len(d)}")
                 m4.metric("Всего", len(s))
                 
@@ -137,7 +144,7 @@ else:
                     else:
                         st.error("Заполни поля!")
     
-    elif page == " Предметы":
+    elif page == "📚 Предметы":
         st.title("Предметы")
         c1, c2 = st.columns(2)
         with c1:
@@ -163,7 +170,7 @@ else:
                     with cn:
                         st.markdown(f"<div style='padding:8px;margin:5px 0;border-radius:6px;background:{s['color']}20;border-left:4px solid {s['color']}'><strong>{s['name']}</strong></div>", unsafe_allow_html=True)
     
-    elif page == " События":
+    elif page == "📅 События":
         st.title("События")
         c1, c2 = st.columns(2)
         with c1:
@@ -185,7 +192,7 @@ else:
                     with ce:
                         st.markdown(f"<div style='padding:8px;margin:5px 0;border-radius:6px;background:{e['color']}20;border-left:4px solid {e['color']}'><strong>{e['date']}</strong> - {e['title']}<br><small>{e['description']}</small></div>", unsafe_allow_html=True)
                     with cd:
-                        if st.button("🗑️", key=f"de{e['id']}"):
+                        if st.button("️", key=f"de{e['id']}"):
                             query("DELETE FROM events WHERE id = ?", (e['id'],))
                             st.success("Удалено!")
     
@@ -210,7 +217,7 @@ else:
             for _, r in fdf.iterrows():
                 cr, ca = st.columns([4, 1])
                 with cr:
-                    icon = {"Оценка": "⭐", "Долг": "⚠️", "Время": ""}.get(r['record_type'], "")
+                    icon = {"Оценка": "⭐", "Долг": "⚠️", "Время": "⏰"}.get(r['record_type'], "")
                     topic = f": {r['topic']}" if r.get('topic') else " (общее)"
                     st.markdown(f"{icon} **{r['subject']}**{topic} ({r['date']})")
                 with ca:
@@ -218,11 +225,11 @@ else:
                         if st.button("✅", key=f"ok{r['id']}"):
                             query("UPDATE records SET status = 'Выполнено' WHERE id = ?", (r['id'],))
                             st.success("Выполнено!")
-                    if st.button("️", key=f"dr{r['id']}"):
+                    if st.button("🗑️", key=f"dr{r['id']}"):
                         query("DELETE FROM records WHERE id = ?", (r['id'],))
                         st.success("Удалено!")
     
-    elif page == " Пользователи" and st.session_state.is_admin:
+    elif page == "👥 Пользователи" and st.session_state.is_admin:
         st.title("Пользователи")
         c1, c2 = st.columns(2)
         with c1:
@@ -244,7 +251,7 @@ else:
                 for _, u in users.iterrows():
                     cu, cd = st.columns([5, 1])
                     with cu:
-                        role = "👑 Админ" if u['is_admin'] else "👤 Юзер"
+                        role = "👑 Админ" if u['is_admin'] else " Юзер"
                         st.markdown(f"<div style='padding:10px;margin:5px 0;border-radius:6px;background:#e0f2fe;border-left:4px solid #0284c7'><strong style='color:#0c4a6e'>{u['username']}</strong> <span style='color:#0369a1'>{role}</span><br><small style='color:#075985'>{u['created_at']}</small></div>", unsafe_allow_html=True)
                     with cd:
                         if u['id'] != st.session_state.user_id:
