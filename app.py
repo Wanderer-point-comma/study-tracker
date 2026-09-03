@@ -6,7 +6,7 @@ import sqlite3
 
 st.set_page_config(
     page_title="Дневник Успеваемости",
-    page_icon="",
+    page_icon="📚",
     layout="wide"
 )
 
@@ -86,10 +86,13 @@ def create_user(admin_id, username, password, is_admin=0):
         return False, "Такой логин уже существует"
 
 def get_users():
-    conn = sqlite3.connect('study_tracker.db')
-    df = pd.read_sql_query("SELECT id, username, is_admin, created_at FROM users", conn)
-    conn.close()
-    return df
+    try:
+        conn = sqlite3.connect('study_tracker.db')
+        df = pd.read_sql_query("SELECT id, username, is_admin, created_at FROM users", conn)
+        conn.close()
+        return df
+    except:
+        return pd.DataFrame()
 
 def delete_user(user_id):
     conn = sqlite3.connect('study_tracker.db')
@@ -101,28 +104,41 @@ def delete_user(user_id):
     conn.close()
 
 def add_subject(user_id, name, color):
+    if not name or not name.strip():
+        return False, "Введите название предмета"
+    
     conn = sqlite3.connect('study_tracker.db')
     try:
         conn.execute('INSERT INTO subjects (user_id, name, color) VALUES (?, ?, ?)',
-                    (user_id, name, color))
+                    (user_id, name.strip(), color))
         conn.commit()
         conn.close()
         return True, "Предмет добавлен!"
     except sqlite3.IntegrityError:
         conn.close()
         return False, "Такой предмет уже существует"
+    except Exception as e:
+        conn.close()
+        return False, f"Ошибка: {str(e)}"
 
 def get_subjects(user_id):
-    conn = sqlite3.connect('study_tracker.db')
-    df = pd.read_sql_query("SELECT * FROM subjects WHERE user_id = ?", conn, params=(user_id,))
-    conn.close()
-    return df
+    try:
+        conn = sqlite3.connect('study_tracker.db')
+        df = pd.read_sql_query("SELECT id, name, color FROM subjects WHERE user_id = ?", conn, params=(user_id,))
+        conn.close()
+        return df
+    except:
+        return pd.DataFrame()
 
 def delete_subject(user_id, subject_name):
-    conn = sqlite3.connect('study_tracker.db')
-    conn.execute('DELETE FROM subjects WHERE user_id = ? AND name = ?', (user_id, subject_name))
-    conn.commit()
-    conn.close()
+    try:
+        conn = sqlite3.connect('study_tracker.db')
+        conn.execute('DELETE FROM subjects WHERE user_id = ? AND name = ?', (user_id, subject_name))
+        conn.commit()
+        conn.close()
+        return True
+    except:
+        return False
 
 def add_record(user_id, date, record_type, subject, topic, grade, hours, comment, status=None):
     conn = sqlite3.connect('study_tracker.db')
@@ -133,24 +149,25 @@ def add_record(user_id, date, record_type, subject, topic, grade, hours, comment
     conn.close()
 
 def get_records(user_id):
-    conn = sqlite3.connect('study_tracker.db')
-    df = pd.read_sql_query("SELECT * FROM records WHERE user_id = ?", conn, params=(user_id,))
-    conn.close()
-    
-    # Гарантируем наличие всех колонок
-    if 'record_type' not in df.columns:
-        df['record_type'] = 'Оценка'
-    if 'status' not in df.columns:
-        df['status'] = None
-    if 'topic' not in df.columns:
-        df['topic'] = ''
+    try:
+        conn = sqlite3.connect('study_tracker.db')
+        df = pd.read_sql_query("SELECT * FROM records WHERE user_id = ?", conn, params=(user_id,))
+        conn.close()
         
-    # Заполняем NaN значения
-    df['record_type'] = df['record_type'].fillna('Оценка')
-    df['status'] = df['status'].fillna('')
-    df['topic'] = df['topic'].fillna('')
-    
-    return df
+        if 'record_type' not in df.columns:
+            df['record_type'] = 'Оценка'
+        if 'status' not in df.columns:
+            df['status'] = None
+        if 'topic' not in df.columns:
+            df['topic'] = ''
+            
+        df['record_type'] = df['record_type'].fillna('Оценка')
+        df['status'] = df['status'].fillna('')
+        df['topic'] = df['topic'].fillna('')
+        
+        return df
+    except:
+        return pd.DataFrame()
 
 def update_record_status(record_id, status):
     conn = sqlite3.connect('study_tracker.db')
@@ -173,10 +190,13 @@ def add_event(user_id, date, title, description, color):
     conn.close()
 
 def get_events(user_id):
-    conn = sqlite3.connect('study_tracker.db')
-    df = pd.read_sql_query("SELECT * FROM events WHERE user_id = ?", conn, params=(user_id,))
-    conn.close()
-    return df
+    try:
+        conn = sqlite3.connect('study_tracker.db')
+        df = pd.read_sql_query("SELECT * FROM events WHERE user_id = ?", conn, params=(user_id,))
+        conn.close()
+        return df
+    except:
+        return pd.DataFrame()
 
 def delete_event(event_id):
     conn = sqlite3.connect('study_tracker.db')
@@ -200,7 +220,7 @@ if not st.session_state.logged_in:
     st.markdown("Войдите в систему")
     st.markdown("---")
     
-    username = st.text_input(" Логин")
+    username = st.text_input("👤 Логин")
     password = st.text_input("🔒 Пароль", type="password")
     
     if st.button("Войти", type="primary", use_container_width=True):
@@ -214,10 +234,10 @@ if not st.session_state.logged_in:
         else:
             st.error("❌ Неверный логин или пароль")
 else:
-    menu_items = [" Главная", "➕ Добавить запись", " Предметы", "📅 События", "📋 Все записи"]
+    menu_items = ["📊 Главная", " Добавить запись", "📚 Предметы", "📅 События", "📋 Все записи"]
     
     if st.session_state.is_admin:
-        menu_items.append("👥 Управление пользователями")
+        menu_items.append(" Управление пользователями")
     
     menu_items.append("🚪 Выйти")
     
@@ -230,8 +250,8 @@ else:
         st.session_state.is_admin = False
         st.rerun()
     
-    elif page == " Главная":
-        st.title(f" Привет, {st.session_state.username}!")
+    elif page == "📊 Главная":
+        st.title(f"👋 Привет, {st.session_state.username}!")
         st.markdown("---")
         
         df = get_records(st.session_state.user_id)
@@ -240,7 +260,7 @@ else:
         if not df.empty and not subjects_df.empty:
             col1, col2, col3 = st.columns(3)
             col1.metric("📊 Всего записей", len(df))
-            col2.metric("📚 Предметов", len(subjects_df))
+            col2.metric(" Предметов", len(subjects_df))
             
             total_debts = len(df[df['record_type'] == 'Долг'])
             pending_debts = len(df[(df['record_type'] == 'Долг') & (df['status'] != 'Выполнено')])
@@ -273,7 +293,7 @@ else:
                 <div style='padding: 15px; margin: 10px 0; border-radius: 10px; 
                             background-color: {subj_color}15; 
                             border-left: 5px solid {subj_color};'>
-                    <h3 style='margin: 0 0 10px 0; color: #333;'>📚 {subj_name}</h3>
+                    <h3 style='margin: 0 0 10px 0; color: #333;'> {subj_name}</h3>
                 </div>
                 """, unsafe_allow_html=True)
                 
@@ -281,7 +301,7 @@ else:
                 col1.metric("⭐ Средний балл", avg_grade, delta=f"{count_grades} оценок")
                 col2.metric("⏰ Всего часов", total_hours, delta=f"{count_hours} записей")
                 col3.metric("⚠️ Долги", f"{pending_debts_subj}", delta=f"из {total_debts_subj}")
-                col4.metric(" Всего записей", len(subj_records))
+                col4.metric("📝 Всего записей", len(subj_records))
                 
                 if not debts.empty:
                     st.markdown("**Долги:**")
@@ -321,7 +341,7 @@ else:
         elif df.empty:
             st.info("📭 Пока нет записей. Добавьте первую запись!")
         else:
-            st.warning("⚠️ Сначала добавьте предметы в разделе ' Предметы'")
+            st.warning("⚠️ Сначала добавьте предметы в разделе '📚 Предметы'")
     
     elif page == "➕ Добавить запись":
         st.title("➕ Добавить запись")
@@ -329,7 +349,7 @@ else:
         subjects_df = get_subjects(st.session_state.user_id)
         
         if subjects_df.empty:
-            st.warning("️ Сначала добавьте предметы в разделе '📚 Предметы'")
+            st.warning("⚠️ Сначала добавьте предметы в разделе '📚 Предметы'")
         else:
             record_type = st.radio("Тип записи", ["Оценка", "Долг", "Время"], horizontal=True)
             
@@ -337,18 +357,18 @@ else:
                 col1, col2 = st.columns(2)
                 
                 with col1:
-                    date = st.date_input("📅 Дата", datetime.now())
-                    subject = st.selectbox(" Предмет", subjects_df['name'].tolist())
+                    date = st.date_input(" Дата", datetime.now())
+                    subject = st.selectbox("📚 Предмет", subjects_df['name'].tolist())
                     
                     if record_type == "Время":
-                        topic = st.text_input("📝 Тема (необязательно)", value="")
+                        topic = st.text_input(" Тема (необязательно)", value="")
                     else:
-                        topic = st.text_input(" Тема")
+                        topic = st.text_input("📝 Тема")
                 
                 with col2:
                     if record_type == "Оценка":
                         grade = st.number_input("⭐ Оценка", 0.0, 100.0, value=None)
-                        hours = st.number_input("⏱️ Часы (необязательно)", 0.0, 24.0, value=None)
+                        hours = st.number_input("️ Часы (необязательно)", 0.0, 24.0, value=None)
                     elif record_type == "Долг":
                         grade = None
                         hours = None
@@ -396,10 +416,13 @@ else:
     elif page == "📚 Предметы":
         st.title("📚 Управление предметами")
         
+        # ОБНОВЛЯЕМ список предметов
+        subjects_df = get_subjects(st.session_state.user_id)
+        
         col1, col2 = st.columns(2)
         
         with col1:
-            st.subheader("➕ Добавить предмет")
+            st.subheader(" Добавить предмет")
             with st.form("subject_form"):
                 name = st.text_input("Название предмета")
                 color = st.color_picker("Цвет", "#3b82f6")
@@ -408,21 +431,26 @@ else:
                         success, msg = add_subject(st.session_state.user_id, name, color)
                         if success:
                             st.success(f"✅ {msg}")
+                            st.rerun()  # ПЕРЕЗАГРУЖАЕМ страницу
                         else:
-                            st.error(f"❌ {msg}")
+                            st.error(f" {msg}")
                     else:
                         st.warning("⚠️ Введите название")
         
         with col2:
-            st.subheader("📋 Список предметов")
-            subjects_df = get_subjects(st.session_state.user_id)
-            if not subjects_df.empty:
+            st.subheader(" Список предметов")
+            
+            # ПРОВЕРЯЕМ что список не пустой
+            if subjects_df is not None and not subjects_df.empty:
                 for _, subj in subjects_df.iterrows():
                     col_del, col_name = st.columns([1, 5])
                     with col_del:
                         if st.button("🗑️", key=f"del_subj_{subj['id']}"):
-                            delete_subject(st.session_state.user_id, subj['name'])
-                            st.success("Предмет удалён")
+                            if delete_subject(st.session_state.user_id, subj['name']):
+                                st.success("Предмет удалён")
+                                st.rerun()  # ПЕРЕЗАГРУЖАЕМ страницу
+                            else:
+                                st.error("Ошибка при удалении")
                     with col_name:
                         st.markdown(f"""
                         <div style='padding: 8px; margin: 5px 0; border-radius: 6px; 
@@ -432,7 +460,7 @@ else:
                         </div>
                         """, unsafe_allow_html=True)
             else:
-                st.info("Нет предметов")
+                st.info("📭 Нет предметов")
     
     elif page == "📅 События":
         st.title("📅 События")
@@ -457,7 +485,7 @@ else:
         with col2:
             st.subheader("📋 Список событий")
             events_df = get_events(st.session_state.user_id)
-            if not events_df.empty:
+            if events_df is not None and not events_df.empty:
                 for _, event in events_df.iterrows():
                     col_ev, col_del = st.columns([5, 1])
                     with col_ev:
@@ -473,16 +501,17 @@ else:
                         if st.button("🗑️", key=f"del_ev_{event['id']}"):
                             delete_event(event['id'])
                             st.success("Событие удалено")
+                            st.rerun()
             else:
                 st.info("Нет событий")
     
-    elif page == " Все записи":
+    elif page == "📋 Все записи":
         st.title("📋 Все записи")
         
         df = get_records(st.session_state.user_id)
         
         if df.empty:
-            st.info(" Записей пока нет")
+            st.info("📭 Записей пока нет")
         else:
             col1, col2, col3 = st.columns(3)
             with col1:
@@ -525,17 +554,19 @@ else:
                         if st.button("✅", key=f"done_{record['id']}"):
                             update_record_status(record['id'], "Выполнено")
                             st.success("Долг выполнен!")
-                    if st.button("🗑️", key=f"del_{record['id']}"):
+                            st.rerun()
+                    if st.button("️", key=f"del_{record['id']}"):
                         delete_record(record['id'])
                         st.success("Запись удалена")
+                        st.rerun()
     
-    elif page == "👥 Управление пользователями" and st.session_state.is_admin:
+    elif page == " Управление пользователями" and st.session_state.is_admin:
         st.title("👥 Управление пользователями")
         
         col1, col2 = st.columns(2)
         
         with col1:
-            st.subheader(" Создать пользователя")
+            st.subheader("➕ Создать пользователя")
             with st.form("create_user_form"):
                 new_username = st.text_input("Логин")
                 new_password = st.text_input("Пароль", type="password")
@@ -548,16 +579,16 @@ else:
                         if success:
                             st.success(f"✅ {msg}")
                         else:
-                            st.error(f" {msg}")
+                            st.error(f"❌ {msg}")
                     else:
                         st.warning("⚠️ Заполните все поля")
         
         with col2:
             st.subheader("📋 Список пользователей")
             users_df = get_users()
-            if not users_df.empty:
+            if users_df is not None and not users_df.empty:
                 for idx, user in users_df.iterrows():
-                    role = "👑 Админ" if user['is_admin'] else " Пользователь"
+                    role = "👑 Админ" if user['is_admin'] else "👤 Пользователь"
                     col_user, col_del = st.columns([5, 1])
                     with col_user:
                         st.markdown(f"""
@@ -574,5 +605,6 @@ else:
                             if st.button("🗑️", key=f"del_user_{user['id']}"):
                                 delete_user(user['id'])
                                 st.success("Пользователь удалён")
+                                st.rerun()
             else:
-                st.info("Нет пользователей кроме вас")
+                st.info("Нет других пользователей")
