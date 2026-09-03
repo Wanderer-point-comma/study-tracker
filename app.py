@@ -5,7 +5,6 @@ import plotly.graph_objects as go
 from datetime import datetime, timedelta
 import os
 import sqlite3
-from streamlit_calendar import calendar
 
 # Настройка страницы
 st.set_page_config(
@@ -55,6 +54,15 @@ def init_db():
     """Создаёт таблицы и добавляет админа, если их нет"""
     conn = sqlite3.connect('study_tracker.db')
     c = conn.cursor()
+    
+    # Проверяем и пересоздаём таблицы если структура не совпадает
+    tables_to_check = ['users', 'devices', 'records', 'subjects', 'events', 'login_logs']
+    
+    for table in tables_to_check:
+        try:
+            c.execute(f"SELECT * FROM {table} LIMIT 1")
+        except sqlite3.OperationalError:
+            c.execute(f"DROP TABLE IF EXISTS {table}")
     
     c.execute('''
         CREATE TABLE IF NOT EXISTS users (
@@ -128,7 +136,7 @@ def init_db():
         )
     ''')
     
-    # Создаём админа по умолчанию, если его нет
+    # Создаём админа по умолчанию
     c.execute('SELECT COUNT(*) FROM users WHERE username = ?', ('admin',))
     count = c.fetchone()[0]
     
@@ -377,7 +385,7 @@ def login_page():
 
 def logout():
     """Выход из системы"""
-    if st.sidebar.button("🚪 Выйти", use_container_width=True):
+    if st.sidebar.button(" Выйти", use_container_width=True):
         for key in ['logged_in', 'user_id', 'username', 'user_type', 'device_id', 'current_menu']:
             if key in st.session_state:
                 del st.session_state[key]
@@ -401,7 +409,7 @@ def main_app():
     
     # Навигация
     menu_options = [
-        "📊 Дашборд",
+        " Дашборд",
         "➕ Добавить запись",
         "📋 Все записи",
         "📚 Мои предметы",
@@ -413,7 +421,7 @@ def main_app():
     if user_type == 'admin':
         menu_options.extend([
             "📱 Устройства",
-            "️ База данных",
+            "🗄️ База данных",
             "📜 Логи входов"
         ])
     
@@ -446,7 +454,7 @@ def main_app():
         df = get_records(user_id)
         
         if df.empty:
-            st.warning("📭 Пока нет записей. Добавьте первую запись в разделе 'Добавить запись'!")
+            st.warning(" Пока нет записей. Добавьте первую запись в разделе 'Добавить запись'!")
         else:
             col1, col2, col3, col4 = st.columns(4)
             
@@ -462,38 +470,28 @@ def main_app():
             
             st.markdown("---")
             
-            st.subheader("📅 Календарь активности")
+            # Простой список ближайших событий вместо календаря
+            st.subheader(" Ближайшие события")
             events_df = get_events(user_id)
             
-            calendar_events = []
-            for _, event in events_df.iterrows():
-                calendar_events.append({
-                    "title": event['title'],
-                    "start": event['date'],
-                    "backgroundColor": event['color'] if event['color'] else "#3b82f6",
-                    "borderColor": event['color'] if event['color'] else "#3b82f6",
-                })
-            
-            for _, record in df.iterrows():
-                calendar_events.append({
-                    "title": f"{record['subject']}: {record['grade']}",
-                    "start": record['date'],
-                    "backgroundColor": "#10b981",
-                    "borderColor": "#10b981",
-                })
-            
-            calendar_options = {
-                "editable": "true",
-                "navLinks": "true",
-                "locale": "ru",
-                "initialView": "dayGridMonth",
-            }
-            
-            cal = calendar(
-                events=calendar_events,
-                options=calendar_options,
-                key="dashboard_calendar"
-            )
+            if events_df.empty:
+                st.info("📭 Событий пока нет")
+            else:
+                events_df['date'] = pd.to_datetime(events_df['date'])
+                upcoming = events_df[events_df['date'] >= datetime.now()].sort_values('date').head(5)
+                
+                if upcoming.empty:
+                    st.info("📭 Нет предстоящих событий")
+                else:
+                    for _, event in upcoming.iterrows():
+                        st.markdown(f"""
+                        <div style='padding: 8px; margin: 5px 0; border-radius: 6px; 
+                                    background-color: {event['color']}15; 
+                                    border-left: 3px solid {event['color']};'>
+                            <strong>{event['date'].strftime('%d.%m.%Y')}</strong><br>
+                            {event['title']}
+                        </div>
+                        """, unsafe_allow_html=True)
             
             st.markdown("---")
             
@@ -526,7 +524,7 @@ def main_app():
             st.plotly_chart(fig_timeline, use_container_width=True)
     
     # === РАЗДЕЛ: ДОБАВИТЬ ЗАПИСЬ ===
-    elif selected_menu == " Добавить запись":
+    elif selected_menu == "➕ Добавить запись":
         st.header("➕ Добавить новую запись")
         
         subjects_df = get_subjects(user_id)
@@ -541,7 +539,7 @@ def main_app():
                     date = st.date_input("📅 Дата", datetime.now())
                     subject_options = subjects_df['name'].tolist()
                     subject = st.selectbox("📚 Предмет", options=subject_options)
-                    topic = st.text_input("📝 Тема", placeholder="Например: Интегралы")
+                    topic = st.text_input(" Тема", placeholder="Например: Интегралы")
                 
                 with col2:
                     grade = st.number_input("⭐ Оценка", min_value=0.0, max_value=100.0, step=0.5)
@@ -557,16 +555,16 @@ def main_app():
                         st.success("✅ Запись успешно добавлена!")
                         st.balloons()
                     else:
-                        st.error("️ Пожалуйста, заполните все обязательные поля")
+                        st.error("⚠️ Пожалуйста, заполните все обязательные поля")
     
     # === РАЗДЕЛ: ВСЕ ЗАПИСИ ===
-    elif selected_menu == "📋 Все записи":
-        st.header("📋 Все ваши записи")
+    elif selected_menu == " Все записи":
+        st.header(" Все ваши записи")
         
         df = get_records(user_id)
         
         if df.empty:
-            st.info(" Записей пока нет")
+            st.info("📭 Записей пока нет")
         else:
             col1, col2 = st.columns(2)
             with col1:
@@ -592,7 +590,7 @@ def main_app():
             )
     
     # === РАЗДЕЛ: МОИ ПРЕДМЕТЫ ===
-    elif selected_menu == " Мои предметы":
+    elif selected_menu == "📚 Мои предметы":
         st.header("📚 Управление предметами")
         
         subjects_df = get_subjects(user_id)
@@ -608,9 +606,9 @@ def main_app():
                     "🔴 Красный": "#ef4444",
                     "🟠 Оранжевый": "#f97316",
                     "🟡 Жёлтый": "#eab308",
-                    " Зелёный": "#22c55e",
+                    "🟢 Зелёный": "#22c55e",
                     "🔵 Синий": "#3b82f6",
-                    " Фиолетовый": "#a855f7",
+                    "🟣 Фиолетовый": "#a855f7",
                     "⚫ Серый": "#6b7280"
                 }
                 color_name = st.selectbox("Цвет предмета", options=list(color_options.keys()))
@@ -630,7 +628,7 @@ def main_app():
                         st.warning("⚠️ Введите название предмета")
         
         with col2:
-            st.subheader("📋 Список предметов")
+            st.subheader(" Список предметов")
             if subjects_df.empty:
                 st.info("📭 Предметов пока нет")
             else:
@@ -649,61 +647,47 @@ def main_app():
                         </div>
                         """, unsafe_allow_html=True)
     
-    # === РАЗДЕЛ: КАЛЕНДАРЬ ===
+    # === РАЗДЕЛ: КАЛЕНДАРЬ (простая таблица) ===
     elif selected_menu == "📅 Календарь":
-        st.header(" Календарь событий")
+        st.header("📅 Календарь событий")
         
         events_df = get_events(user_id)
         
         col1, col2 = st.columns([2, 1])
         
         with col1:
-            st.subheader("📆 Ваш календарь")
-            
-            calendar_events = []
-            for _, event in events_df.iterrows():
-                calendar_events.append({
-                    "title": event['title'],
-                    "start": event['date'],
-                    "backgroundColor": event['color'] if event['color'] else "#3b82f6",
-                    "borderColor": event['color'] if event['color'] else "#3b82f6",
-                    "extendedProps": {"id": event['id'], "description": event['description']}
-                })
-            
-            calendar_options = {
-                "editable": "true",
-                "navLinks": "true",
-                "locale": "ru",
-                "initialView": "dayGridMonth",
-            }
-            
-            cal = calendar(
-                events=calendar_events,
-                options=calendar_options,
-                key="main_calendar"
-            )
-            
-            if cal and 'event' in cal:
-                event_data = cal['event']
-                if 'extendedProps' in event_data and 'id' in event_data['extendedProps']:
-                    event_id_to_delete = event_data['extendedProps']['id']
-                    st.warning(f"🗑️ Кликнуто на событие: {event_data.get('title', 'Без названия')}")
-                    if st.button("Удалить это событие", type="secondary"):
-                        delete_event(event_id_to_delete)
-                        st.success("✅ Событие удалено")
-                        st.rerun()
+            st.subheader("📆 Ваши события")
+            if events_df.empty:
+                st.info("📭 Событий пока нет")
+            else:
+                # Добавляем кнопку удаления для каждого события
+                for idx, event in events_df.iterrows():
+                    col_event, col_del = st.columns([5, 1])
+                    with col_event:
+                        st.markdown(f"""
+                        <div style='padding: 8px; margin: 5px 0; border-radius: 6px; 
+                                    background-color: {event['color']}15; 
+                                    border-left: 3px solid {event['color']};'>
+                            <strong>{event['date']}</strong> - {event['title']}<br>
+                            <small>{event['description']}</small>
+                        </div>
+                        """, unsafe_allow_html=True)
+                    with col_del:
+                        if st.button("🗑️", key=f"del_event_{event['id']}"):
+                            delete_event(event['id'])
+                            st.rerun()
         
         with col2:
             st.subheader("➕ Добавить событие")
             with st.form("add_event_form"):
-                event_date = st.date_input("📅 Дата", datetime.now())
+                event_date = st.date_input(" Дата", datetime.now())
                 event_title = st.text_input("📝 Название", placeholder="Например: Контрольная")
                 event_description = st.text_area("💬 Описание", placeholder="Дополнительная информация")
                 
                 color_options = {
-                    " Красный": "#ef4444",
+                    "🔴 Красный": "#ef4444",
                     "🟠 Оранжевый": "#f97316",
-                    "🟡 Жёлтый": "#eab308",
+                    " Жёлтый": "#eab308",
                     "🟢 Зелёный": "#22c55e",
                     "🔵 Синий": "#3b82f6",
                     "🟣 Фиолетовый": "#a855f7"
@@ -720,29 +704,7 @@ def main_app():
                         st.success("✅ Событие добавлено!")
                         st.rerun()
                     else:
-                        st.warning("⚠️ Введите название события")
-            
-            st.markdown("---")
-            
-            st.subheader("📋 Ближайшие события")
-            if events_df.empty:
-                st.info("📭 Событий нет")
-            else:
-                events_df['date'] = pd.to_datetime(events_df['date'])
-                upcoming = events_df[events_df['date'] >= datetime.now()].sort_values('date').head(5)
-                
-                if upcoming.empty:
-                    st.info(" Нет предстоящих событий")
-                else:
-                    for _, event in upcoming.iterrows():
-                        st.markdown(f"""
-                        <div style='padding: 8px; margin: 5px 0; border-radius: 6px; 
-                                    background-color: {event['color']}15; 
-                                    border-left: 3px solid {event['color']};'>
-                            <strong>{event['date'].strftime('%d.%m.%Y')}</strong><br>
-                            {event['title']}
-                        </div>
-                        """, unsafe_allow_html=True)
+                        st.warning("️ Введите название события")
     
     # === РАЗДЕЛ: АНАЛИТИКА ===
     elif selected_menu == "📈 Аналитика":
@@ -769,7 +731,7 @@ def main_app():
             
             st.markdown("---")
             
-            st.subheader("📊 Распределение оценок")
+            st.subheader(" Распределение оценок")
             fig_hist = px.histogram(df, x='grade', nbins=20, 
                                    title='Распределение всех оценок',
                                    color_discrete_sequence=['#636EFA'])
@@ -783,16 +745,16 @@ def main_app():
             st.plotly_chart(fig_heatmap, use_container_width=True)
     
     # === РАЗДЕЛ: НАСТРОЙКИ ПРОФИЛЯ ===
-    elif selected_menu == "⚙️ Настройки профиля":
+    elif selected_menu == "️ Настройки профиля":
         st.header("⚙️ Настройки профиля")
         
-        st.info(f" Текущий логин: **{username}**")
+        st.info(f"👤 Текущий логин: **{username}**")
         
         with st.form("update_credentials_form"):
             st.subheader("Изменить логин и пароль")
             
             new_username = st.text_input("👤 Новый логин", value=username)
-            new_password = st.text_input(" Новый пароль", type="password")
+            new_password = st.text_input("🔒 Новый пароль", type="password")
             confirm_password = st.text_input("🔒 Подтвердите пароль", type="password")
             
             submitted = st.form_submit_button("💾 Сохранить изменения", type="primary", use_container_width=True)
@@ -812,18 +774,18 @@ def main_app():
                         st.error(f"❌ {message}")
     
     # === РАЗДЕЛ: УСТРОЙСТВА (АДМИН) ===
-    elif selected_menu == " Устройства":
-        st.header(" Управление устройствами")
+    elif selected_menu == "📱 Устройства":
+        st.header("📱 Управление устройствами")
         
         devices_df = get_devices(user_id)
         
         col1, col2 = st.columns(2)
         
         with col1:
-            st.subheader("➕ Добавить устройство")
+            st.subheader(" Добавить устройство")
             with st.form("add_device_form"):
-                device_name = st.text_input("📱 Название устройства", placeholder="Например: Мой телефон")
-                device_username = st.text_input("👤 Логин для устройства", placeholder="Например: phone_user")
+                device_name = st.text_input(" Название устройства", placeholder="Например: Мой телефон")
+                device_username = st.text_input(" Логин для устройства", placeholder="Например: phone_user")
                 device_password = st.text_input("🔒 Пароль для устройства", type="password")
                 
                 submitted = st.form_submit_button("💾 Добавить устройство", type="primary", use_container_width=True)
@@ -833,7 +795,7 @@ def main_app():
                         success, message = add_device(user_id, device_name, device_username, device_password)
                         if success:
                             st.success(f"✅ {message}")
-                            st.info(f"📋 Данные для входа:\n- Логин: {device_username}\n- Пароль: {device_password}")
+                            st.info(f" Данные для входа:\n- Логин: {device_username}\n- Пароль: {device_password}")
                             st.rerun()
                         else:
                             st.error(f"❌ {message}")
@@ -850,32 +812,32 @@ def main_app():
                     <div style='padding: 12px; margin: 8px 0; border-radius: 8px; 
                                 background-color: #f0f9ff; 
                                 border-left: 4px solid #3b82f6;'>
-                        <strong>📱 {device['device_name']}</strong><br>
+                        <strong> {device['device_name']}</strong><br>
                         <small>Логин: {device['username']}</small><br>
                         <small>Создано: {device['created_at']}</small><br>
                         <small>Последний вход: {device['last_login'] or 'Никогда'}</small>
                     </div>
                     """, unsafe_allow_html=True)
                     
-                    if st.button(f"️ Удалить {device['device_name']}", key=f"del_device_{device['id']}"):
+                    if st.button(f"🗑️ Удалить {device['device_name']}", key=f"del_device_{device['id']}"):
                         delete_device(device['id'], user_id)
                         st.success("✅ Устройство удалено")
                         st.rerun()
     
     # === РАЗДЕЛ: БАЗА ДАННЫХ (АДМИН) ===
     elif selected_menu == "🗄️ База данных":
-        st.header("️ Просмотр базы данных")
+        st.header("🗄️ Просмотр базы данных")
         
         tables = get_all_tables()
         
-        st.info(f" Всего таблиц в базе данных: {len(tables)}")
+        st.info(f"📊 Всего таблиц в базе данных: {len(tables)}")
         
         selected_table = st.selectbox("Выберите таблицу для просмотра", tables)
         
         if selected_table:
             df = get_table_data(selected_table)
             
-            st.subheader(f" Таблица: {selected_table}")
+            st.subheader(f"📋 Таблица: {selected_table}")
             st.write(f"Записей: {len(df)}")
             
             st.dataframe(df, use_container_width=True, hide_index=True)
@@ -906,12 +868,12 @@ def main_app():
     
     # === РАЗДЕЛ: ЛОГИ ВХОДОВ (АДМИН) ===
     elif selected_menu == "📜 Логи входов":
-        st.header(" История входов")
+        st.header("📜 История входов")
         
         logs_df = get_login_logs(user_id)
         
         if logs_df.empty:
-            st.info("📭 Логи входов пусты")
+            st.info(" Логи входов пусты")
         else:
             st.dataframe(logs_df, use_container_width=True, hide_index=True)
             
