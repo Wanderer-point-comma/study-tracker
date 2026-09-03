@@ -14,7 +14,6 @@ def init_db():
     conn = sqlite3.connect('study_tracker.db')
     c = conn.cursor()
     
-    # Создаём таблицы если нет
     c.execute('''CREATE TABLE IF NOT EXISTS users (
         id INTEGER PRIMARY KEY AUTOINCREMENT, 
         username TEXT UNIQUE, 
@@ -47,7 +46,7 @@ def init_db():
         description TEXT, 
         color TEXT)''')
     
-    # Миграция: добавляем новые колонки если их нет
+    # Миграция: добавляем новые колонки
     try:
         c.execute("ALTER TABLE records ADD COLUMN record_type TEXT DEFAULT 'Оценка'")
     except:
@@ -58,7 +57,6 @@ def init_db():
     except:
         pass
     
-    # Создаём админа если нет
     c.execute('SELECT COUNT(*) FROM users WHERE username = ?', ('admin',))
     if c.fetchone()[0] == 0:
         c.execute('INSERT INTO users (username, password, created_at, is_admin) VALUES (?, ?, ?, 1)',
@@ -138,7 +136,6 @@ def add_record(user_id, date, record_type, subject, topic, grade, hours, comment
 def get_records(user_id):
     conn = sqlite3.connect('study_tracker.db')
     df = pd.read_sql_query("SELECT * FROM records WHERE user_id = ?", conn, params=(user_id,))
-    # Заполняем NaN для старых записей
     if 'record_type' not in df.columns:
         df['record_type'] = 'Оценка'
     if 'status' not in df.columns:
@@ -180,7 +177,6 @@ def delete_event(event_id):
 
 init_db()
 
-# Инициализация сессии
 if 'logged_in' not in st.session_state:
     st.session_state.logged_in = False
 if 'user_id' not in st.session_state:
@@ -190,9 +186,8 @@ if 'username' not in st.session_state:
 if 'is_admin' not in st.session_state:
     st.session_state.is_admin = False
 
-# === СТРАНИЦА ВХОДА ===
 if not st.session_state.logged_in:
-    st.title("📚 Дневник Успеваемости")
+    st.title(" Дневник Успеваемости")
     st.markdown("Войдите в систему")
     st.markdown("---")
     
@@ -208,11 +203,9 @@ if not st.session_state.logged_in:
             st.session_state.is_admin = bool(user[1])
             st.rerun()
         else:
-            st.error(" Неверный логин или пароль")
-
-# === ОСНОВНОЕ ПРИЛОЖЕНИЕ ===
+            st.error("❌ Неверный логин или пароль")
 else:
-    menu_items = ["📊 Главная", "➕ Добавить запись", " Предметы", "📅 События", "📋 Все записи"]
+    menu_items = ["📊 Главная", "➕ Добавить запись", "📚 Предметы", "📅 События", "📋 Все записи"]
     
     if st.session_state.is_admin:
         menu_items.append("👥 Управление пользователями")
@@ -289,21 +282,21 @@ else:
                     st.markdown(f"""
                     <div style='padding: 10px; margin: 5px 0; border-radius: 8px; 
                                 background-color: {color}20; border-left: 4px solid {color};'>
-                        <strong>{debt['subject']}</strong>: {debt['topic']} 
+                        <strong style='color: #333;'>{debt['subject']}</strong>: {debt['topic']} 
                         <span style='color: {color};'>[{status}]</span>
-                        <br><small>{debt['date']}</small>
+                        <br><small style='color: #666;'>{debt['date']}</small>
                     </div>
                     """, unsafe_allow_html=True)
         else:
             st.info("📭 Пока нет записей. Добавьте первую запись!")
     
     elif page == "➕ Добавить запись":
-        st.title("➕ Добавить запись")
+        st.title(" Добавить запись")
         
         subjects_df = get_subjects(st.session_state.user_id)
         
         if subjects_df.empty:
-            st.warning("️ Сначала добавьте предметы в разделе ' Предметы'")
+            st.warning("⚠️ Сначала добавьте предметы в разделе '📚 Предметы'")
         else:
             record_type = st.radio("Тип записи", ["Оценка", "Долг", "Время"], horizontal=True)
             
@@ -312,13 +305,13 @@ else:
                 
                 with col1:
                     date = st.date_input("📅 Дата", datetime.now())
-                    subject = st.selectbox(" Предмет", subjects_df['name'].tolist())
+                    subject = st.selectbox("📚 Предмет", subjects_df['name'].tolist())
                     topic = st.text_input("📝 Тема")
                 
                 with col2:
                     if record_type == "Оценка":
                         grade = st.number_input("⭐ Оценка", 0.0, 100.0, value=None)
-                        hours = st.number_input("⏱️ Часы (необязательно)", 0.0, 24.0, value=None)
+                        hours = st.number_input("️ Часы (необязательно)", 0.0, 24.0, value=None)
                     elif record_type == "Долг":
                         grade = None
                         hours = None
@@ -342,7 +335,7 @@ else:
                                   grade, hours, comment, status)
                         st.success("✅ Запись добавлена!")
                     else:
-                        st.error("️ Заполните предмет и тему")
+                        st.error("⚠️ Заполните предмет и тему")
     
     elif page == "📚 Предметы":
         st.title("📚 Управление предметами")
@@ -350,7 +343,7 @@ else:
         col1, col2 = st.columns(2)
         
         with col1:
-            st.subheader("➕ Добавить предмет")
+            st.subheader(" Добавить предмет")
             with st.form("subject_form"):
                 name = st.text_input("Название предмета")
                 color = st.color_picker("Цвет", "#3b82f6")
@@ -362,7 +355,7 @@ else:
                         else:
                             st.error(f"❌ {msg}")
                     else:
-                        st.warning("Введите название")
+                        st.warning("⚠️ Введите название")
         
         with col2:
             st.subheader("📋 Список предметов")
@@ -373,13 +366,13 @@ else:
                     with col_del:
                         if st.button("🗑️", key=f"del_subj_{subj['id']}"):
                             delete_subject(st.session_state.user_id, subj['name'])
-                            st.rerun()
+                            st.success("Предмет удалён")
                     with col_name:
                         st.markdown(f"""
                         <div style='padding: 8px; margin: 5px 0; border-radius: 6px; 
                                     background-color: {subj['color']}20; 
                                     border-left: 4px solid {subj['color']};'>
-                            <strong>{subj['name']}</strong>
+                            <strong style='color: #333;'>{subj['name']}</strong>
                         </div>
                         """, unsafe_allow_html=True)
             else:
@@ -391,9 +384,9 @@ else:
         col1, col2 = st.columns(2)
         
         with col1:
-            st.subheader(" Добавить событие")
+            st.subheader("➕ Добавить событие")
             with st.form("event_form"):
-                date = st.date_input("📅 Дата", datetime.now())
+                date = st.date_input(" Дата", datetime.now())
                 title = st.text_input("📝 Название")
                 desc = st.text_area("💬 Описание")
                 color = st.color_picker("🎨 Цвет", "#3b82f6")
@@ -403,7 +396,7 @@ else:
                                  date.strftime("%Y-%m-%d"), title, desc, color)
                         st.success("✅ Событие добавлено!")
                     else:
-                        st.warning("Введите название")
+                        st.warning("⚠️ Введите название")
         
         with col2:
             st.subheader("📋 Список событий")
@@ -416,19 +409,19 @@ else:
                         <div style='padding: 8px; margin: 5px 0; border-radius: 6px; 
                                     background-color: {event['color']}20; 
                                     border-left: 4px solid {event['color']};'>
-                            <strong>{event['date']}</strong> - {event['title']}
-                            <br><small>{event['description']}</small>
+                            <strong style='color: #333;'>{event['date']}</strong> - {event['title']}
+                            <br><small style='color: #666;'>{event['description']}</small>
                         </div>
                         """, unsafe_allow_html=True)
                     with col_del:
                         if st.button("🗑️", key=f"del_ev_{event['id']}"):
                             delete_event(event['id'])
-                            st.rerun()
+                            st.success("Событие удалено")
             else:
                 st.info("Нет событий")
     
     elif page == "📋 Все записи":
-        st.title("📋 Все записи")
+        st.title(" Все записи")
         
         df = get_records(st.session_state.user_id)
         
@@ -466,13 +459,13 @@ else:
                     if rtype == "Долг" and status != "Выполнено":
                         if st.button("✅", key=f"done_{record['id']}"):
                             update_record_status(record['id'], "Выполнено")
-                            st.rerun()
-                    if st.button("🗑️", key=f"del_{record['id']}"):
+                            st.success("Долг выполнен!")
+                    if st.button("️", key=f"del_{record['id']}"):
                         delete_record(record['id'])
-                        st.rerun()
+                        st.success("Запись удалена")
     
     elif page == "👥 Управление пользователями" and st.session_state.is_admin:
-        st.title("👥 Управление пользователями")
+        st.title(" Управление пользователями")
         
         col1, col2 = st.columns(2)
         
@@ -492,7 +485,7 @@ else:
                         else:
                             st.error(f"❌ {msg}")
                     else:
-                        st.warning("Заполните все поля")
+                        st.warning("⚠️ Заполните все поля")
         
         with col2:
             st.subheader("📋 Список пользователей")
@@ -503,15 +496,16 @@ else:
                     col_user, col_del = st.columns([5, 1])
                     with col_user:
                         st.markdown(f"""
-                        <div style='padding: 8px; margin: 5px 0; border-radius: 6px; 
-                                    background-color: #f0f9ff; 
-                                    border-left: 4px solid #3b82f6;'>
-                            <strong>{user['username']}</strong> {role}
-                            <br><small>Создан: {user['created_at']}</small>
+                        <div style='padding: 10px; margin: 5px 0; border-radius: 6px; 
+                                    background-color: #e0f2fe; 
+                                    border-left: 4px solid #0284c7;'>
+                            <strong style='color: #0c4a6e;'>{user['username']}</strong> 
+                            <span style='color: #0369a1;'>{role}</span>
+                            <br><small style='color: #075985;'>Создан: {user['created_at']}</small>
                         </div>
                         """, unsafe_allow_html=True)
                     with col_del:
                         if user['id'] != st.session_state.user_id:
-                            if st.button("🗑️", key=f"del_user_{user['id']}"):
+                            if st.button("️", key=f"del_user_{user['id']}"):
                                 delete_user(user['id'])
-                                st.rerun()
+                                st.success("Пользователь удалён")
