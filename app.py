@@ -56,7 +56,6 @@ def init_db():
     conn = sqlite3.connect('study_tracker.db')
     c = conn.cursor()
     
-    # Создаём таблицу пользователей
     c.execute('''
         CREATE TABLE IF NOT EXISTS users (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -67,7 +66,6 @@ def init_db():
         )
     ''')
     
-    # Создаём таблицу устройств
     c.execute('''
         CREATE TABLE IF NOT EXISTS devices (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -81,7 +79,6 @@ def init_db():
         )
     ''')
     
-    # Создаём таблицу записей
     c.execute('''
         CREATE TABLE IF NOT EXISTS records (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -98,7 +95,6 @@ def init_db():
         )
     ''')
     
-    # Создаём таблицу предметов
     c.execute('''
         CREATE TABLE IF NOT EXISTS subjects (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -109,7 +105,6 @@ def init_db():
         )
     ''')
     
-    # Создаём таблицу событий
     c.execute('''
         CREATE TABLE IF NOT EXISTS events (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -121,7 +116,6 @@ def init_db():
         )
     ''')
     
-    # Создаём таблицу логов
     c.execute('''
         CREATE TABLE IF NOT EXISTS login_logs (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -134,12 +128,11 @@ def init_db():
         )
     ''')
     
-    # Проверяем, есть ли админ
+    # Создаём админа по умолчанию, если его нет
     c.execute('SELECT COUNT(*) FROM users WHERE username = ?', ('admin',))
     count = c.fetchone()[0]
     
     if count == 0:
-        # Создаём админа по умолчанию
         c.execute('''
             INSERT INTO users (username, password, created_at, is_admin)
             VALUES (?, ?, ?, ?)
@@ -154,7 +147,6 @@ def verify_user(username, password):
     conn = sqlite3.connect('study_tracker.db')
     c = conn.cursor()
     
-    # Проверяем в таблице users
     c.execute('SELECT id, password, is_admin FROM users WHERE username = ?', (username,))
     user = c.fetchone()
     
@@ -162,7 +154,6 @@ def verify_user(username, password):
         conn.close()
         return True, user[0], 'admin' if user[2] else 'user', None
     
-    # Проверяем в таблице devices
     c.execute('SELECT id, user_id, password FROM devices WHERE username = ?', (username,))
     device = c.fetchone()
     
@@ -373,7 +364,7 @@ def login_page():
                     st.session_state['username'] = username
                     st.session_state['user_type'] = user_type
                     st.session_state['device_id'] = device_id
-                    st.session_state['current_menu'] = " Дашборд"
+                    st.session_state['current_menu'] = "📊 Дашборд"
                     
                     log_login(user_id, device_id, device_name or "Не указано", 
                              "127.0.0.1", "Browser")
@@ -421,18 +412,25 @@ def main_app():
     
     if user_type == 'admin':
         menu_options.extend([
-            " Устройства",
-            "🗄️ База данных",
+            "📱 Устройства",
+            "️ База данных",
             "📜 Логи входов"
         ])
     
     if 'current_menu' not in st.session_state:
         st.session_state['current_menu'] = "📊 Дашборд"
     
+    # Защита от ошибки, если меню не в списке
+    try:
+        default_index = menu_options.index(st.session_state['current_menu'])
+    except ValueError:
+        default_index = 0
+        st.session_state['current_menu'] = menu_options[0]
+    
     selected_menu = st.sidebar.radio(
         "Навигация",
         menu_options,
-        index=menu_options.index(st.session_state['current_menu']),
+        index=default_index,
         label_visibility="collapsed"
     )
     
@@ -502,7 +500,7 @@ def main_app():
             col1, col2 = st.columns(2)
             
             with col1:
-                st.subheader("📊 Средний балл по предметам")
+                st.subheader(" Средний балл по предметам")
                 subject_avg = df.groupby('subject')['grade'].mean().reset_index()
                 fig_subject = px.bar(subject_avg, x='subject', y='grade', 
                                     color='grade', color_continuous_scale='Viridis')
@@ -528,13 +526,13 @@ def main_app():
             st.plotly_chart(fig_timeline, use_container_width=True)
     
     # === РАЗДЕЛ: ДОБАВИТЬ ЗАПИСЬ ===
-    elif selected_menu == "➕ Добавить запись":
+    elif selected_menu == " Добавить запись":
         st.header("➕ Добавить новую запись")
         
         subjects_df = get_subjects(user_id)
         
         if subjects_df.empty:
-            st.warning("️ Сначала добавьте предметы в разделе 'Мои предметы'")
+            st.warning("⚠️ Сначала добавьте предметы в разделе 'Мои предметы'")
         else:
             with st.form("add_record_form"):
                 col1, col2 = st.columns(2)
@@ -543,7 +541,7 @@ def main_app():
                     date = st.date_input("📅 Дата", datetime.now())
                     subject_options = subjects_df['name'].tolist()
                     subject = st.selectbox("📚 Предмет", options=subject_options)
-                    topic = st.text_input(" Тема", placeholder="Например: Интегралы")
+                    topic = st.text_input("📝 Тема", placeholder="Например: Интегралы")
                 
                 with col2:
                     grade = st.number_input("⭐ Оценка", min_value=0.0, max_value=100.0, step=0.5)
@@ -559,16 +557,16 @@ def main_app():
                         st.success("✅ Запись успешно добавлена!")
                         st.balloons()
                     else:
-                        st.error("⚠️ Пожалуйста, заполните все обязательные поля")
+                        st.error("️ Пожалуйста, заполните все обязательные поля")
     
     # === РАЗДЕЛ: ВСЕ ЗАПИСИ ===
-    elif selected_menu == " Все записи":
+    elif selected_menu == "📋 Все записи":
         st.header("📋 Все ваши записи")
         
         df = get_records(user_id)
         
         if df.empty:
-            st.info("📭 Записей пока нет")
+            st.info(" Записей пока нет")
         else:
             col1, col2 = st.columns(2)
             with col1:
@@ -594,8 +592,8 @@ def main_app():
             )
     
     # === РАЗДЕЛ: МОИ ПРЕДМЕТЫ ===
-    elif selected_menu == "📚 Мои предметы":
-        st.header(" Управление предметами")
+    elif selected_menu == " Мои предметы":
+        st.header("📚 Управление предметами")
         
         subjects_df = get_subjects(user_id)
         
@@ -609,11 +607,11 @@ def main_app():
                 color_options = {
                     "🔴 Красный": "#ef4444",
                     "🟠 Оранжевый": "#f97316",
-                    " Жёлтый": "#eab308",
-                    "🟢 Зелёный": "#22c55e",
+                    "🟡 Жёлтый": "#eab308",
+                    " Зелёный": "#22c55e",
                     "🔵 Синий": "#3b82f6",
-                    "🟣 Фиолетовый": "#a855f7",
-                    " Серый": "#6b7280"
+                    " Фиолетовый": "#a855f7",
+                    "⚫ Серый": "#6b7280"
                 }
                 color_name = st.selectbox("Цвет предмета", options=list(color_options.keys()))
                 color = color_options[color_name]
@@ -634,7 +632,7 @@ def main_app():
         with col2:
             st.subheader("📋 Список предметов")
             if subjects_df.empty:
-                st.info(" Предметов пока нет")
+                st.info("📭 Предметов пока нет")
             else:
                 for _, subject in subjects_df.iterrows():
                     col_del, col_name = st.columns([1, 5])
@@ -653,7 +651,7 @@ def main_app():
     
     # === РАЗДЕЛ: КАЛЕНДАРЬ ===
     elif selected_menu == "📅 Календарь":
-        st.header("📅 Календарь событий")
+        st.header(" Календарь событий")
         
         events_df = get_events(user_id)
         
@@ -688,10 +686,10 @@ def main_app():
             if cal and 'event' in cal:
                 event_data = cal['event']
                 if 'extendedProps' in event_data and 'id' in event_data['extendedProps']:
-                    event_id = event_data['extendedProps']['id']
+                    event_id_to_delete = event_data['extendedProps']['id']
                     st.warning(f"🗑️ Кликнуто на событие: {event_data.get('title', 'Без названия')}")
                     if st.button("Удалить это событие", type="secondary"):
-                        delete_event(event_id)
+                        delete_event(event_id_to_delete)
                         st.success("✅ Событие удалено")
                         st.rerun()
         
@@ -703,7 +701,7 @@ def main_app():
                 event_description = st.text_area("💬 Описание", placeholder="Дополнительная информация")
                 
                 color_options = {
-                    "🔴 Красный": "#ef4444",
+                    " Красный": "#ef4444",
                     "🟠 Оранжевый": "#f97316",
                     "🟡 Жёлтый": "#eab308",
                     "🟢 Зелёный": "#22c55e",
@@ -722,19 +720,19 @@ def main_app():
                         st.success("✅ Событие добавлено!")
                         st.rerun()
                     else:
-                        st.warning("️ Введите название события")
+                        st.warning("⚠️ Введите название события")
             
             st.markdown("---")
             
             st.subheader("📋 Ближайшие события")
             if events_df.empty:
-                st.info(" Событий нет")
+                st.info("📭 Событий нет")
             else:
                 events_df['date'] = pd.to_datetime(events_df['date'])
                 upcoming = events_df[events_df['date'] >= datetime.now()].sort_values('date').head(5)
                 
                 if upcoming.empty:
-                    st.info("📭 Нет предстоящих событий")
+                    st.info(" Нет предстоящих событий")
                 else:
                     for _, event in upcoming.iterrows():
                         st.markdown(f"""
@@ -758,7 +756,7 @@ def main_app():
             col1, col2 = st.columns(2)
             
             with col1:
-                st.subheader(" Лучшие предметы")
+                st.subheader("🏆 Лучшие предметы")
                 best_subjects = df.groupby('subject')['grade'].mean().nlargest(3)
                 for i, (subject, grade) in enumerate(best_subjects.items(), 1):
                     st.write(f"{i}. {subject}: {grade:.2f}")
@@ -777,7 +775,7 @@ def main_app():
                                    color_discrete_sequence=['#636EFA'])
             st.plotly_chart(fig_hist, use_container_width=True)
             
-            st.subheader(" Активность по предметам")
+            st.subheader("🔥 Активность по предметам")
             heatmap_data = df.groupby(['subject', pd.to_datetime(df['date']).dt.month]).size().unstack(fill_value=0)
             fig_heatmap = px.imshow(heatmap_data, 
                                    labels=dict(x="Месяц", y="Предмет", color="Количество записей"),
@@ -788,14 +786,14 @@ def main_app():
     elif selected_menu == "⚙️ Настройки профиля":
         st.header("⚙️ Настройки профиля")
         
-        st.info(f"👤 Текущий логин: **{username}**")
+        st.info(f" Текущий логин: **{username}**")
         
         with st.form("update_credentials_form"):
             st.subheader("Изменить логин и пароль")
             
             new_username = st.text_input("👤 Новый логин", value=username)
-            new_password = st.text_input("🔒 Новый пароль", type="password")
-            confirm_password = st.text_input(" Подтвердите пароль", type="password")
+            new_password = st.text_input(" Новый пароль", type="password")
+            confirm_password = st.text_input("🔒 Подтвердите пароль", type="password")
             
             submitted = st.form_submit_button("💾 Сохранить изменения", type="primary", use_container_width=True)
             
@@ -811,7 +809,7 @@ def main_app():
                         st.session_state['username'] = new_username
                         st.rerun()
                     else:
-                        st.error(f" {message}")
+                        st.error(f"❌ {message}")
     
     # === РАЗДЕЛ: УСТРОЙСТВА (АДМИН) ===
     elif selected_menu == " Устройства":
@@ -822,7 +820,7 @@ def main_app():
         col1, col2 = st.columns(2)
         
         with col1:
-            st.subheader(" Добавить устройство")
+            st.subheader("➕ Добавить устройство")
             with st.form("add_device_form"):
                 device_name = st.text_input("📱 Название устройства", placeholder="Например: Мой телефон")
                 device_username = st.text_input("👤 Логин для устройства", placeholder="Например: phone_user")
@@ -838,7 +836,7 @@ def main_app():
                             st.info(f"📋 Данные для входа:\n- Логин: {device_username}\n- Пароль: {device_password}")
                             st.rerun()
                         else:
-                            st.error(f" {message}")
+                            st.error(f"❌ {message}")
                     else:
                         st.warning("⚠️ Заполните все поля")
         
@@ -859,7 +857,7 @@ def main_app():
                     </div>
                     """, unsafe_allow_html=True)
                     
-                    if st.button(f"🗑️ Удалить {device['device_name']}", key=f"del_device_{device['id']}"):
+                    if st.button(f"️ Удалить {device['device_name']}", key=f"del_device_{device['id']}"):
                         delete_device(device['id'], user_id)
                         st.success("✅ Устройство удалено")
                         st.rerun()
@@ -870,14 +868,14 @@ def main_app():
         
         tables = get_all_tables()
         
-        st.info(f"📊 Всего таблиц в базе данных: {len(tables)}")
+        st.info(f" Всего таблиц в базе данных: {len(tables)}")
         
         selected_table = st.selectbox("Выберите таблицу для просмотра", tables)
         
         if selected_table:
             df = get_table_data(selected_table)
             
-            st.subheader(f"📋 Таблица: {selected_table}")
+            st.subheader(f" Таблица: {selected_table}")
             st.write(f"Записей: {len(df)}")
             
             st.dataframe(df, use_container_width=True, hide_index=True)
@@ -908,7 +906,7 @@ def main_app():
     
     # === РАЗДЕЛ: ЛОГИ ВХОДОВ (АДМИН) ===
     elif selected_menu == "📜 Логи входов":
-        st.header("📜 История входов")
+        st.header(" История входов")
         
         logs_df = get_login_logs(user_id)
         
