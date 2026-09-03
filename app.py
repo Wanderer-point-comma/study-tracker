@@ -46,7 +46,6 @@ def init_db():
         description TEXT, 
         color TEXT)''')
     
-    # Миграция: добавляем новые колонки
     try:
         c.execute("ALTER TABLE records ADD COLUMN record_type TEXT DEFAULT 'Оценка'")
     except:
@@ -187,7 +186,7 @@ if 'is_admin' not in st.session_state:
     st.session_state.is_admin = False
 
 if not st.session_state.logged_in:
-    st.title(" Дневник Успеваемости")
+    st.title("📚 Дневник Успеваемости")
     st.markdown("Войдите в систему")
     st.markdown("---")
     
@@ -205,7 +204,7 @@ if not st.session_state.logged_in:
         else:
             st.error("❌ Неверный логин или пароль")
 else:
-    menu_items = ["📊 Главная", "➕ Добавить запись", "📚 Предметы", "📅 События", "📋 Все записи"]
+    menu_items = [" Главная", "➕ Добавить запись", " Предметы", "📅 События", "📋 Все записи"]
     
     if st.session_state.is_admin:
         menu_items.append("👥 Управление пользователями")
@@ -214,7 +213,7 @@ else:
     
     page = st.sidebar.selectbox("Меню", menu_items)
     
-    if page == "🚪 Выйти":
+    if page == " Выйти":
         st.session_state.logged_in = False
         st.session_state.user_id = None
         st.session_state.username = None
@@ -226,33 +225,102 @@ else:
         st.markdown("---")
         
         df = get_records(st.session_state.user_id)
+        subjects_df = get_subjects(st.session_state.user_id)
         
         if not df.empty:
+            # Общая статистика
             col1, col2, col3, col4 = st.columns(4)
-            col1.metric("Всего записей", len(df))
+            col1.metric(" Всего записей", len(df))
             
             grades = df[df['record_type'] == 'Оценка']['grade'].dropna()
-            if not grades.empty:
-                col2.metric("Средний балл", f"{grades.mean():.1f}")
-            else:
-                col2.metric("Средний балл", "—")
+            col2.metric("⭐ Средний балл", f"{grades.mean():.1f}" if not grades.empty else "—")
             
             hours = df['hours'].dropna()
-            if not hours.empty:
-                col3.metric("Всего часов", f"{hours.sum():.1f}")
-            else:
-                col3.metric("Всего часов", "—")
+            col3.metric("⏰ Всего часов", f"{hours.sum():.1f}" if not hours.empty else "—")
             
             debts = df[df['record_type'] == 'Долг']
             pending_debts = debts[debts['status'] != 'Выполнено']
-            col4.metric("Долги", f"{len(pending_debts)}")
+            col4.metric("⚠️ Активные долги", len(pending_debts))
             
             st.markdown("---")
+            st.subheader("📚 Статистика по предметам")
             
+            # Для каждого предмета создаём карточку
+            for _, subject_row in subjects_df.iterrows():
+                subject_name = subject_row['name']
+                subject_color = subject_row['color']
+                
+                # Фильтруем записи по предмету
+                subj_df = df[df['subject'] == subject_name]
+                
+                if subj_df.empty:
+                    continue
+                
+                # Статистика по предмету
+                subj_grades = subj_df[subj_df['record_type'] == 'Оценка']['grade'].dropna()
+                subj_hours = subj_df['hours'].dropna()
+                subj_debts = subj_df[subj_df['record_type'] == 'Долг']
+                subj_pending_debts = subj_debts[subj_debts['status'] != 'Выполнено']
+                subj_records_count = len(subj_df)
+                
+                # Карточка предмета
+                st.markdown(f"""
+                <div style='padding: 15px; margin: 10px 0; border-radius: 10px; 
+                            background-color: {subject_color}15; 
+                            border-left: 5px solid {subject_color};'>
+                    <h3 style='color: {subject_color}; margin: 0;'>📖 {subject_name}</h3>
+                    <p style='color: #666; margin: 5px 0 0 0;'>Всего записей: {subj_records_count}</p>
+                </div>
+                """, unsafe_allow_html=True)
+                
+                # Метрики по предмету
+                col1, col2, col3, col4 = st.columns(4)
+                
+                with col1:
+                    if not subj_grades.empty:
+                        avg_grade = subj_grades.mean()
+                        st.metric("⭐ Средний балл", f"{avg_grade:.1f}")
+                        # Показываем все оценки
+                        grades_list = subj_grades.tolist()
+                        st.caption(f"Оценки: {', '.join(map(str, grades_list))}")
+                    else:
+                        st.metric("⭐ Средний балл", "—")
+                
+                with col2:
+                    if not subj_hours.empty:
+                        total_hours = subj_hours.sum()
+                        st.metric("⏰ Часов", f"{total_hours:.1f}")
+                    else:
+                        st.metric("⏰ Часов", "—")
+                
+                with col3:
+                    total_debts = len(subj_debts)
+                    pending = len(subj_pending_debts)
+                    st.metric("️ Долги", f"{pending}/{total_debts}")
+                
+                with col4:
+                    # Последние оценки
+                    recent = subj_df[subj_df['record_type'] == 'Оценка'].tail(3)
+                    if not recent.empty:
+                        last_grade = recent.iloc[-1]['grade']
+                        st.metric("📊 Последняя", f"{last_grade:.1f}")
+                    else:
+                        st.metric("📊 Последняя", "—")
+                
+                # Список долгов по предмету
+                if not subj_pending_debts.empty:
+                    st.markdown("**Активные долги:**")
+                    for _, debt in subj_pending_debts.iterrows():
+                        st.markdown(f"- ⚠️ {debt['topic']} ({debt['date']})")
+                
+                st.markdown("---")
+            
+            # Графики
+            st.subheader("📊 Графики")
             col1, col2 = st.columns(2)
             
             with col1:
-                st.subheader("📊 Оценки по предметам")
+                st.subheader("Средний балл по предметам")
                 grades_df = df[df['record_type'] == 'Оценка']
                 if not grades_df.empty:
                     subject_avg = grades_df.groupby('subject')['grade'].mean().reset_index()
@@ -264,7 +332,7 @@ else:
                     st.info("Нет оценок")
             
             with col2:
-                st.subheader("⏰ Время по предметам")
+                st.subheader("Часы по предметам")
                 hours_df = df[df['hours'].notna()]
                 if not hours_df.empty:
                     subject_hours = hours_df.groupby('subject')['hours'].sum().reset_index()
@@ -273,25 +341,11 @@ else:
                     st.plotly_chart(fig, use_container_width=True)
                 else:
                     st.info("Нет данных о времени")
-            
-            if not debts.empty:
-                st.subheader("⚠️ Долги")
-                for _, debt in debts.iterrows():
-                    status = debt.get('status') if pd.notna(debt.get('status')) else "В процессе"
-                    color = "green" if status == "Выполнено" else "orange"
-                    st.markdown(f"""
-                    <div style='padding: 10px; margin: 5px 0; border-radius: 8px; 
-                                background-color: {color}20; border-left: 4px solid {color};'>
-                        <strong style='color: #333;'>{debt['subject']}</strong>: {debt['topic']} 
-                        <span style='color: {color};'>[{status}]</span>
-                        <br><small style='color: #666;'>{debt['date']}</small>
-                    </div>
-                    """, unsafe_allow_html=True)
         else:
-            st.info("📭 Пока нет записей. Добавьте первую запись!")
+            st.info(" Пока нет записей. Добавьте первую запись!")
     
     elif page == "➕ Добавить запись":
-        st.title(" Добавить запись")
+        st.title("➕ Добавить запись")
         
         subjects_df = get_subjects(st.session_state.user_id)
         
@@ -305,20 +359,20 @@ else:
                 
                 with col1:
                     date = st.date_input("📅 Дата", datetime.now())
-                    subject = st.selectbox("📚 Предмет", subjects_df['name'].tolist())
+                    subject = st.selectbox(" Предмет", subjects_df['name'].tolist())
                     topic = st.text_input("📝 Тема")
                 
                 with col2:
                     if record_type == "Оценка":
                         grade = st.number_input("⭐ Оценка", 0.0, 100.0, value=None)
-                        hours = st.number_input("️ Часы (необязательно)", 0.0, 24.0, value=None)
+                        hours = st.number_input("⏱️ Часы (необязательно)", 0.0, 24.0, value=None)
                     elif record_type == "Долг":
                         grade = None
                         hours = None
                         st.info("Для долга оценка и время не требуются")
                     else:
                         grade = None
-                        hours = st.number_input("⏱️ Часы", 0.0, 24.0, value=None)
+                        hours = st.number_input("️ Часы", 0.0, 24.0, value=None)
                     
                     comment = st.text_area("💬 Комментарий")
                 
@@ -343,7 +397,7 @@ else:
         col1, col2 = st.columns(2)
         
         with col1:
-            st.subheader(" Добавить предмет")
+            st.subheader("➕ Добавить предмет")
             with st.form("subject_form"):
                 name = st.text_input("Название предмета")
                 color = st.color_picker("Цвет", "#3b82f6")
@@ -353,12 +407,12 @@ else:
                         if success:
                             st.success(f"✅ {msg}")
                         else:
-                            st.error(f"❌ {msg}")
+                            st.error(f" {msg}")
                     else:
                         st.warning("⚠️ Введите название")
         
         with col2:
-            st.subheader("📋 Список предметов")
+            st.subheader(" Список предметов")
             subjects_df = get_subjects(st.session_state.user_id)
             if not subjects_df.empty:
                 for _, subj in subjects_df.iterrows():
@@ -384,9 +438,9 @@ else:
         col1, col2 = st.columns(2)
         
         with col1:
-            st.subheader("➕ Добавить событие")
+            st.subheader(" Добавить событие")
             with st.form("event_form"):
-                date = st.date_input(" Дата", datetime.now())
+                date = st.date_input("📅 Дата", datetime.now())
                 title = st.text_input("📝 Название")
                 desc = st.text_area("💬 Описание")
                 color = st.color_picker("🎨 Цвет", "#3b82f6")
@@ -414,14 +468,14 @@ else:
                         </div>
                         """, unsafe_allow_html=True)
                     with col_del:
-                        if st.button("🗑️", key=f"del_ev_{event['id']}"):
+                        if st.button("️", key=f"del_ev_{event['id']}"):
                             delete_event(event['id'])
                             st.success("Событие удалено")
             else:
                 st.info("Нет событий")
     
     elif page == "📋 Все записи":
-        st.title(" Все записи")
+        st.title("📋 Все записи")
         
         df = get_records(st.session_state.user_id)
         
@@ -460,17 +514,17 @@ else:
                         if st.button("✅", key=f"done_{record['id']}"):
                             update_record_status(record['id'], "Выполнено")
                             st.success("Долг выполнен!")
-                    if st.button("️", key=f"del_{record['id']}"):
+                    if st.button("🗑️", key=f"del_{record['id']}"):
                         delete_record(record['id'])
                         st.success("Запись удалена")
     
     elif page == "👥 Управление пользователями" and st.session_state.is_admin:
-        st.title(" Управление пользователями")
+        st.title("👥 Управление пользователями")
         
         col1, col2 = st.columns(2)
         
         with col1:
-            st.subheader("➕ Создать пользователя")
+            st.subheader(" Создать пользователя")
             with st.form("create_user_form"):
                 new_username = st.text_input("Логин")
                 new_password = st.text_input("Пароль", type="password")
@@ -485,14 +539,14 @@ else:
                         else:
                             st.error(f"❌ {msg}")
                     else:
-                        st.warning("⚠️ Заполните все поля")
+                        st.warning("️ Заполните все поля")
         
         with col2:
             st.subheader("📋 Список пользователей")
             users_df = get_users()
             if not users_df.empty:
                 for _, user in users_df.iterrows():
-                    role = "👑 Админ" if user['is_admin'] else " Пользователь"
+                    role = " Админ" if user['is_admin'] else "👤 Пользователь"
                     col_user, col_del = st.columns([5, 1])
                     with col_user:
                         st.markdown(f"""
@@ -506,6 +560,6 @@ else:
                         """, unsafe_allow_html=True)
                     with col_del:
                         if user['id'] != st.session_state.user_id:
-                            if st.button("️", key=f"del_user_{user['id']}"):
+                            if st.button("🗑️", key=f"del_user_{user['id']}"):
                                 delete_user(user['id'])
                                 st.success("Пользователь удалён")
