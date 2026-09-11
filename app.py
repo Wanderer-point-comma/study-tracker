@@ -173,7 +173,7 @@ def show_first_setup():
                 st.error("Пароли не совпадают."); return
             try:
                 query(
-                    "INSERT INTO users (username, password, created_at, is_admin) VALUES (%s, %s, %s, TRUE)",
+                    "INSERT INTO users (username, password, created_at, is_admin) VALUES (%s, %s, %s, 1)",
                     (username, hash_password(password), datetime.now().strftime("%Y-%m-%d"))
                 )
                 st.success("Администратор создан. Теперь можно войти.")
