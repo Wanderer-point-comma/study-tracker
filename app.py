@@ -1001,21 +1001,45 @@ def show_events():
 def show_settings():
     st.title("⚙️ Настройки")
     st.subheader("🔐 Смена пароля")
+    st.caption("После успешной смены пароля ты останешься в дневнике — повторно входить не потребуется.")
+
     with st.form("change_password"):
         old = st.text_input("Текущий пароль", type="password")
         new = st.text_input("Новый пароль", type="password")
         new2 = st.text_input("Повтори новый пароль", type="password")
+
         if st.form_submit_button("Изменить пароль", type="primary"):
-            user = query("SELECT password FROM users WHERE id=%s", (uid(),), fetchone=True)
-            if not user or not verify_password(old, user[0]):
-                st.error("Текущий пароль указан неверно.")
-            elif len(new) < 8:
-                st.error("Новый пароль должен содержать минимум 8 символов.")
-            elif new != new2:
-                st.error("Новые пароли не совпадают.")
-            else:
-                query("UPDATE users SET password=%s WHERE id=%s", (hash_password(new), uid()), write=True)
-                st.success("Пароль изменён.")
+            # Важно: сначала проверяем текущий пароль, затем записываем новый.
+            # Никаких rerun/clear session здесь нет — авторизация сохраняется.
+            try:
+                user = query(
+                    "SELECT password FROM users WHERE id=%s",
+                    (uid(),),
+                    fetchone=True,
+                )
+
+                if not user:
+                    st.error("Пользователь не найден. Выйди и войди снова.")
+                elif not verify_password(old, user[0]):
+                    st.error("Текущий пароль указан неверно.")
+                elif len(new) < 8:
+                    st.error("Новый пароль должен содержать минимум 8 символов.")
+                elif new != new2:
+                    st.error("Новые пароли не совпадают.")
+                elif old == new:
+                    st.warning("Новый пароль должен отличаться от текущего.")
+                else:
+                    new_hash = hash_password(new)
+                    query(
+                        "UPDATE users SET password=%s WHERE id=%s",
+                        (new_hash, uid()),
+                        write=True,
+                    )
+                    set_notice("🔐 Пароль успешно изменён!")
+                    st.rerun()
+            except Exception as exc:
+                st.error("Не удалось изменить пароль. Сам дневник и текущая сессия не были очищены.")
+                st.exception(exc)
 
 
 def show_users():
@@ -1105,5 +1129,6 @@ try:
         elif page == "⚙️ Настройки": show_settings()
         elif page == "👥 Пользователи": show_users()
 
-except Exception:
+except Exception as exc:
     st.error("Не удалось запустить дневник. Попробуйте обновить страницу.")
+    st.exception(exc)
