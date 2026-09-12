@@ -266,6 +266,86 @@ def grade_badge(grade):
 # LOGIN
 # ============================================================
 
+
+def event_card_html(event):
+    color = event["color"] or "#3b82f6"
+    title = str(event["title"]).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+    description = str(event["description"] or "").replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+    return f"""
+    <div style="padding:14px 16px;margin:7px 0;border-radius:10px;
+                background:{color}20;border-left:6px solid {color};font-size:1.03rem;">
+        <strong>📅 {event["date"]} — {title}</strong><br>
+        <span style="opacity:.8;">{description}</span>
+    </div>
+    """
+
+
+def show_grades():
+    st.title("⭐ Оценки по датам")
+    uid = current_user_id()
+    df = get_df(
+        """
+        SELECT date, subject, topic, grade, hours, comment
+        FROM records
+        WHERE user_id = %s AND record_type = 'Оценка' AND grade IS NOT NULL
+        ORDER BY date DESC, id DESC
+        """,
+        (uid,),
+    )
+
+    if df.empty:
+        st.info("Пока нет оценок.")
+        return
+
+    df["date"] = pd.to_datetime(df["date"])
+    subjects = sorted(df["subject"].dropna().unique().tolist())
+
+    c1, c2 = st.columns(2)
+    with c1:
+        selected_subjects = st.multiselect("Предметы", subjects)
+    with c2:
+        dates = st.date_input(
+            "Период",
+            value=(df["date"].min().date(), df["date"].max().date()),
+        )
+
+    filtered = df.copy()
+    if selected_subjects:
+        filtered = filtered[filtered["subject"].isin(selected_subjects)]
+
+    if isinstance(dates, (tuple, list)) and len(dates) == 2:
+        filtered = filtered[
+            (filtered["date"].dt.date >= dates[0])
+            & (filtered["date"].dt.date <= dates[1])
+        ]
+
+    if filtered.empty:
+        st.warning("За выбранный период оценок нет.")
+        return
+
+    st.metric("Средний балл", f"{filtered['grade'].mean():.2f}", f"{len(filtered)} оценок")
+    st.divider()
+
+    for day, day_df in filtered.groupby(filtered["date"].dt.date, sort=False):
+        st.subheader(f"📅 {day.strftime('%d.%m.%Y')}")
+        cols = st.columns(min(6, max(1, len(day_df))))
+        for i, (_, row) in enumerate(day_df.iterrows()):
+            with cols[i % len(cols)]:
+                st.markdown(
+                    f"""
+                    <div style="padding:14px 10px;margin-bottom:10px;border-radius:12px;
+                                border:1px solid rgba(128,128,128,.25);text-align:center;">
+                        <div style="font-size:1.8rem;">{grade_badge(row["grade"])}</div>
+                        <div style="font-weight:700;margin-top:8px;">{row["subject"]}</div>
+                        <div style="opacity:.7;font-size:.9rem;">{row["topic"] or "Без темы"}</div>
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
+        st.caption(f"Средний за день: {day_df['grade'].mean():.2f} · Оценок: {len(day_df)}")
+
+
+
 def show_first_setup():
     st.title("📚 Личный дневник")
     st.subheader("Первый запуск")
@@ -434,7 +514,8 @@ def show_new_record():
                 (uid(), record_date.isoformat(), record_type, subject, topic.strip(), grade, hours, comment.strip(), status),
                 write=True,
             )
-            set_notice(record_success_message(record_type))
+            notice_kind = "danger" if record_type == "Долг" else "success"
+            set_notice(record_success_message(record_type), notice_kind)
             st.rerun()
 
 
@@ -568,9 +649,7 @@ def show_events():
         for _, event in events.iterrows():
             left, right = st.columns([5, 1])
             with left:
-                st.markdown(f"**{event.date} — {event.title}**")
-                if event.description:
-                    st.caption(event.description)
+                st.markdown(event_card_html(event), unsafe_allow_html=True)
             with right:
                 if st.button("🗑️", key=f"delete_event_{event.id}"):
                     query("DELETE FROM events WHERE id=%s AND user_id=%s", (int(event.id), uid()), write=True)
