@@ -20,188 +20,309 @@ st.set_page_config(page_title="Личный дневник", page_icon="📚", l
 st.markdown(
     """
     <style>
-    /* Общий масштаб и фон */
+    /* ========================================================
+       LIGHT / CLEAN DIARY UI
+       ======================================================== */
+
+    :root {
+        --diary-bg: #f5f7fb;
+        --diary-surface: #ffffff;
+        --diary-border: #e5e7eb;
+        --diary-text: #172033;
+        --diary-muted: #667085;
+        --diary-primary: #2563eb;
+        --diary-primary-soft: #eff6ff;
+        --diary-shadow: 0 10px 30px rgba(15, 23, 42, .07);
+        --diary-radius: 18px;
+    }
+
     .stApp {
         background:
-            radial-gradient(circle at 10% 0%, rgba(59,130,246,.12), transparent 28%),
-            radial-gradient(circle at 90% 10%, rgba(139,92,246,.10), transparent 25%),
-            #0b1020;
+            radial-gradient(circle at 5% 0%, rgba(37,99,235,.07), transparent 24%),
+            radial-gradient(circle at 95% 8%, rgba(99,102,241,.06), transparent 22%),
+            var(--diary-bg);
+        color: var(--diary-text);
     }
 
     .main .block-container {
-        max-width: 1450px;
-        padding: 2.4rem 3.2rem 4rem;
+        max-width: 1500px;
+        padding: 2.6rem 3.4rem 4.5rem;
     }
 
-    /* Заголовки страниц */
+    /* Page typography */
     h1 {
-        font-size: 2.7rem !important;
-        line-height: 1.15 !important;
-        letter-spacing: -.03em;
-        margin-bottom: 1.4rem !important;
+        color: #111827 !important;
+        font-size: 3rem !important;
+        line-height: 1.08 !important;
+        letter-spacing: -.045em;
+        font-weight: 850 !important;
+        margin-bottom: 1.7rem !important;
     }
 
     h2 {
+        color: #1f2937 !important;
         font-size: 1.85rem !important;
-        margin-top: 1.7rem !important;
+        font-weight: 800 !important;
+        letter-spacing: -.025em;
+        margin-top: 1.9rem !important;
     }
 
     h3 {
-        font-size: 1.35rem !important;
+        color: #253047 !important;
+        font-size: 1.3rem !important;
+        font-weight: 750 !important;
     }
 
-    p, label, .stMarkdown, .stCaption, .stTextInput, .stSelectbox,
-    .stNumberInput, .stDateInput, .stTextArea, .stMultiSelect {
-        font-size: 1.03rem;
+    p, label, .stMarkdown, .stCaption,
+    .stTextInput, .stSelectbox, .stNumberInput,
+    .stDateInput, .stTextArea, .stMultiSelect {
+        font-size: 1.04rem;
     }
 
-    /* Sidebar */
+    [data-testid="stCaptionContainer"] {
+        color: var(--diary-muted);
+    }
+
+    /* Sidebar — app navigation */
     section[data-testid="stSidebar"] {
-        background: linear-gradient(180deg, #10182d 0%, #0d1425 100%);
-        border-right: 1px solid rgba(255,255,255,.08);
+        background: rgba(255,255,255,.96);
+        border-right: 1px solid #e6eaf0;
+        box-shadow: 8px 0 30px rgba(15,23,42,.035);
     }
 
     section[data-testid="stSidebar"] > div {
-        padding-top: 1.6rem;
+        padding: 1.45rem 1rem 1.2rem;
     }
 
     section[data-testid="stSidebar"] [data-testid="stMarkdownContainer"] p {
-        font-size: 1.05rem;
+        color: #475467;
+        font-size: 1rem;
     }
 
-    /* Навигационное radio-меню */
     section[data-testid="stSidebar"] div[role="radiogroup"] {
-        gap: .45rem;
+        gap: .35rem;
+        margin-top: .8rem;
     }
 
     section[data-testid="stSidebar"] div[role="radiogroup"] label {
-        border-radius: 12px;
-        padding: .65rem .8rem;
+        border-radius: 13px;
+        padding: .72rem .8rem;
+        color: #475467;
+        border: 1px solid transparent;
         transition: all .15s ease;
     }
 
     section[data-testid="stSidebar"] div[role="radiogroup"] label:hover {
-        background: rgba(59,130,246,.12);
+        background: #f7f9fc;
+        border-color: #e8edf3;
+        transform: translateX(2px);
     }
 
-    /* Карточки metric */
-    div[data-testid="stMetric"] {
-        background: linear-gradient(145deg, rgba(30,41,59,.92), rgba(15,23,42,.92));
-        border: 1px solid rgba(148,163,184,.16);
-        border-radius: 18px;
-        padding: 1.15rem 1.25rem;
-        min-height: 125px;
-        box-shadow: 0 10px 30px rgba(0,0,0,.18);
+    section[data-testid="stSidebar"] div[role="radiogroup"] label[data-checked="true"] {
+        background: #eff6ff;
+        border-color: #dbeafe;
+        color: #1d4ed8;
+        font-weight: 750;
     }
 
-    div[data-testid="stMetricLabel"] {
-        font-size: 1rem !important;
-    }
-
-    div[data-testid="stMetricValue"] {
-        font-size: 2rem !important;
-        font-weight: 800 !important;
-    }
-
-    /* Формы */
-    div[data-testid="stForm"] {
-        background: rgba(15,23,42,.58);
-        border: 1px solid rgba(148,163,184,.15);
-        border-radius: 18px;
-        padding: 1.35rem 1.45rem;
-        box-shadow: 0 14px 40px rgba(0,0,0,.14);
-    }
-
-    /* Поля */
+    /* Inputs */
     div[data-baseweb="input"] > div,
     div[data-baseweb="textarea"] > div,
     div[data-baseweb="select"] > div {
-        border-radius: 11px;
+        background: #ffffff;
+        border: 1px solid #dfe4ea;
+        border-radius: 12px;
+        min-height: 2.75rem;
+        box-shadow: 0 1px 2px rgba(16,24,40,.02);
+    }
+
+    div[data-baseweb="input"] > div:focus-within,
+    div[data-baseweb="textarea"] > div:focus-within,
+    div[data-baseweb="select"] > div:focus-within {
+        border-color: #93c5fd;
+        box-shadow: 0 0 0 3px rgba(37,99,235,.10);
     }
 
     input, textarea {
+        color: #172033 !important;
         font-size: 1.02rem !important;
     }
 
-    /* Кнопки */
+    /* Forms become white elevated panels */
+    div[data-testid="stForm"] {
+        background: rgba(255,255,255,.94);
+        border: 1px solid var(--diary-border);
+        border-radius: var(--diary-radius);
+        padding: 1.55rem 1.6rem;
+        box-shadow: var(--diary-shadow);
+    }
+
+    /* Metrics */
+    div[data-testid="stMetric"] {
+        position: relative;
+        background: #ffffff;
+        border: 1px solid var(--diary-border);
+        border-radius: 18px;
+        padding: 1.25rem 1.3rem;
+        min-height: 128px;
+        box-shadow: var(--diary-shadow);
+        overflow: hidden;
+    }
+
+    div[data-testid="stMetric"]::before {
+        content: "";
+        position: absolute;
+        left: 0;
+        top: 0;
+        bottom: 0;
+        width: 4px;
+        background: #2563eb;
+        opacity: .9;
+    }
+
+    div[data-testid="stMetricLabel"] {
+        color: #667085 !important;
+        font-size: .96rem !important;
+        font-weight: 650 !important;
+    }
+
+    div[data-testid="stMetricValue"] {
+        color: #111827 !important;
+        font-size: 2.15rem !important;
+        font-weight: 850 !important;
+        letter-spacing: -.035em;
+    }
+
+    div[data-testid="stMetricDelta"] {
+        font-size: .9rem !important;
+    }
+
+    /* Buttons */
     .stButton > button,
     .stFormSubmitButton > button {
+        min-height: 2.75rem;
         border-radius: 11px;
-        min-height: 2.65rem;
+        border: 1px solid #d8dee8;
+        background: #ffffff;
+        color: #344054;
         font-size: 1rem;
-        font-weight: 700;
-        transition: transform .12s ease, box-shadow .12s ease;
+        font-weight: 750;
+        box-shadow: 0 2px 5px rgba(16,24,40,.04);
+        transition: transform .12s ease, box-shadow .12s ease, border-color .12s ease;
     }
 
     .stButton > button:hover,
     .stFormSubmitButton > button:hover {
+        border-color: #bfdbfe;
+        color: #1d4ed8;
+        box-shadow: 0 7px 18px rgba(37,99,235,.10);
         transform: translateY(-1px);
-        box-shadow: 0 8px 22px rgba(0,0,0,.22);
     }
 
-    /* Уведомления */
+    /* Primary buttons */
+    button[kind="primary"],
+    .stFormSubmitButton button[kind="primary"] {
+        background: #2563eb !important;
+        border-color: #2563eb !important;
+        color: #ffffff !important;
+    }
+
+    button[kind="primary"]:hover,
+    .stFormSubmitButton button[kind="primary"]:hover {
+        background: #1d4ed8 !important;
+        border-color: #1d4ed8 !important;
+        color: #ffffff !important;
+    }
+
+    /* Alerts / notifications */
     div[data-testid="stAlert"] {
         border-radius: 14px;
-        font-size: 1.02rem;
         padding: .9rem 1rem;
+        font-size: 1rem;
+        border-width: 1px;
     }
 
-    /* Таблицы */
+    /* Tables */
     div[data-testid="stDataFrame"] {
-        border-radius: 14px;
-        overflow: hidden;
-        border: 1px solid rgba(148,163,184,.14);
-    }
-
-    /* Графики */
-    div[data-testid="stPlotlyChart"] {
-        background: rgba(15,23,42,.45);
-        border: 1px solid rgba(148,163,184,.12);
-        border-radius: 18px;
-        padding: .55rem;
-    }
-
-    /* Разделители */
-    hr {
-        margin: 2rem 0 !important;
-        border-color: rgba(148,163,184,.12) !important;
-    }
-
-    /* Чуть больше воздуха в колонках */
-    div[data-testid="column"] {
-        padding-left: .4rem;
-        padding-right: .4rem;
-    }
-
-    /* Карточки предметов/событий/оценок, которые создаются HTML */
-    .diary-card {
+        background: #ffffff;
+        border: 1px solid var(--diary-border);
         border-radius: 16px;
-        border: 1px solid rgba(148,163,184,.14);
-        background: rgba(15,23,42,.62);
-        padding: 1rem 1.15rem;
-        box-shadow: 0 8px 25px rgba(0,0,0,.12);
+        overflow: hidden;
+        box-shadow: var(--diary-shadow);
     }
 
-    /* На узких экранах */
+    /* Charts */
+    div[data-testid="stPlotlyChart"] {
+        background: #ffffff;
+        border: 1px solid var(--diary-border);
+        border-radius: 18px;
+        padding: .65rem;
+        box-shadow: var(--diary-shadow);
+    }
+
+    /* Radio / checkbox / select controls */
+    div[role="radiogroup"] label,
+    div[data-testid="stCheckbox"] label {
+        font-weight: 600;
+    }
+
+    /* Expanders */
+    div[data-testid="stExpander"] {
+        background: #ffffff;
+        border: 1px solid var(--diary-border);
+        border-radius: 14px;
+        box-shadow: 0 4px 15px rgba(15,23,42,.04);
+    }
+
+    /* Dividers */
+    hr {
+        margin: 2.2rem 0 !important;
+        border-color: #e7ebf0 !important;
+    }
+
+    /* Content cards used by the app */
+    .diary-card {
+        background: #ffffff;
+        border: 1px solid #e5e7eb;
+        border-radius: 16px;
+        padding: 1.05rem 1.2rem;
+        box-shadow: 0 7px 22px rgba(15,23,42,.055);
+    }
+
+    /* Nice focus / selection */
+    ::selection {
+        background: #dbeafe;
+        color: #172033;
+    }
+
+    /* Mobile */
     @media (max-width: 900px) {
         .main .block-container {
-            padding: 1.25rem 1rem 3rem;
+            padding: 1.25rem .9rem 3rem;
         }
+
         h1 {
-            font-size: 2.15rem !important;
+            font-size: 2.25rem !important;
         }
+
         h2 {
             font-size: 1.55rem !important;
         }
+
         div[data-testid="stMetric"] {
-            min-height: 105px;
-            padding: .85rem;
+            min-height: 108px;
+            padding: .9rem;
+        }
+
+        div[data-testid="stMetricValue"] {
+            font-size: 1.7rem !important;
         }
     }
     </style>
     """,
     unsafe_allow_html=True,
 )
+
 
 PBKDF2_ITERATIONS = 310_000
 POOL_MIN = 1
