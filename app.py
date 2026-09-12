@@ -281,8 +281,8 @@ def event_card_html(event):
 
 
 def show_grades():
-    st.title("⭐ Оценки по датам")
-    uid = current_user_id()
+    st.title("⭐ Оценки")
+    user_id = uid()
     df = get_df(
         """
         SELECT date, subject, topic, grade, hours, comment
@@ -290,7 +290,7 @@ def show_grades():
         WHERE user_id = %s AND record_type = 'Оценка' AND grade IS NOT NULL
         ORDER BY date DESC, id DESC
         """,
-        (uid,),
+        (user_id,),
     )
 
     if df.empty:
