@@ -594,11 +594,14 @@ def event_card_html(event):
 def show_grades():
     st.title("⭐ Оценки")
     user_id = uid()
+
     df = get_df(
         """
         SELECT date, subject, topic, grade, hours, comment
         FROM records
-        WHERE user_id = %s AND record_type = 'Оценка' AND grade IS NOT NULL
+        WHERE user_id = %s
+          AND record_type = 'Оценка'
+          AND grade IS NOT NULL
         ORDER BY date DESC, id DESC
         """,
         (user_id,),
@@ -609,18 +612,20 @@ def show_grades():
         return
 
     df["date"] = pd.to_datetime(df["date"])
-    subjects = sorted(df["subject"].dropna().unique().tolist())
+    df["grade"] = pd.to_numeric(df["grade"], errors="coerce")
+    subjects = sorted(df["subject"].dropna().astype(str).unique().tolist())
 
     c1, c2 = st.columns(2)
     with c1:
-        selected_subjects = st.multiselect("Предметы", subjects)
+        selected_subjects = st.multiselect("📚 Предметы", subjects)
     with c2:
         dates = st.date_input(
-            "Период",
+            "📅 Период",
             value=(df["date"].min().date(), df["date"].max().date()),
         )
 
     filtered = df.copy()
+
     if selected_subjects:
         filtered = filtered[filtered["subject"].isin(selected_subjects)]
 
@@ -634,28 +639,78 @@ def show_grades():
         st.warning("За выбранный период оценок нет.")
         return
 
-    st.metric("Средний балл", f"{filtered['grade'].mean():.2f}", f"{len(filtered)} оценок")
+    avg = filtered["grade"].mean()
+    st.metric("Средний балл", f"{avg:.2f}", f"{len(filtered)} оценок")
     st.divider()
 
+    # Главное изменение: сначала показываем ПРЕДМЕТ крупно,
+    # затем оценку и тему. Поэтому предмет невозможно потерять
+    # среди остальных данных.
     for day, day_df in filtered.groupby(filtered["date"].dt.date, sort=False):
-        st.subheader(f"📅 {day.strftime('%d.%m.%Y')}")
-        cols = st.columns(min(6, max(1, len(day_df))))
-        for i, (_, row) in enumerate(day_df.iterrows()):
-            with cols[i % len(cols)]:
-                st.markdown(
-                    f"""
-                    <div style="padding:14px 10px;margin-bottom:10px;border-radius:12px;
-                                border:1px solid rgba(128,128,128,.25);text-align:center;">
-                        <div style="font-size:1.8rem;">{grade_badge(row["grade"])}</div>
-                        <div style="font-weight:700;margin-top:8px;">{row["subject"]}</div>
-                        <div style="opacity:.7;font-size:.9rem;">{row["topic"] or "Без темы"}</div>
+        st.markdown(
+            f'<div style="font-size:1.15rem;font-weight:800;margin:18px 0 10px 0;">'
+            f'📅 {day.strftime("%d.%m.%Y")}</div>',
+            unsafe_allow_html=True,
+        )
+
+        for _, row in day_df.iterrows():
+            grade = float(row["grade"])
+            subject = str(row["subject"]) if pd.notna(row["subject"]) else "Без предмета"
+            topic = str(row["topic"]) if pd.notna(row["topic"]) and str(row["topic"]).strip() else "Без темы"
+            comment = str(row["comment"]) if pd.notna(row["comment"]) and str(row["comment"]).strip() else ""
+
+            color = grade_color(grade)
+
+            st.markdown(
+                f"""
+                <div style="
+                    display:flex;
+                    align-items:center;
+                    gap:18px;
+                    padding:16px 18px;
+                    margin:8px 0;
+                    border:1px solid #e2e8f0;
+                    border-left:6px solid {color};
+                    border-radius:14px;
+                    background:#ffffff;
+                    box-shadow:0 3px 12px rgba(15,23,42,.06);
+                ">
+                    <div style="
+                        min-width:54px;
+                        text-align:center;
+                        font-size:1.7rem;
+                        font-weight:900;
+                        color:{color};
+                    ">{grade:g}</div>
+
+                    <div style="flex:1;min-width:0;">
+                        <div style="
+                            font-size:1.08rem;
+                            font-weight:800;
+                            color:#0f172a;
+                            margin-bottom:4px;
+                        ">📚 {subject}</div>
+
+                        <div style="
+                            color:#64748b;
+                            font-size:.95rem;
+                        ">📝 {topic}</div>
+
+                        {f'<div style="color:#64748b;font-size:.9rem;margin-top:5px;">💬 {comment}</div>' if comment else ''}
                     </div>
-                    """,
-                    unsafe_allow_html=True,
-                )
-        st.caption(f"Средний за день: {day_df['grade'].mean():.2f} · Оценок: {len(day_df)}")
 
+                    <div style="font-size:.9rem;color:#64748b;white-space:nowrap;">
+                        {day.strftime("%d.%m.%Y")}
+                    </div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
 
+        st.caption(
+            f"Средний за день: {day_df['grade'].mean():.2f} · "
+            f"Оценок: {len(day_df)}"
+        )
 
 def show_first_setup():
     st.title("📚 Личный дневник")
