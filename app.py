@@ -387,8 +387,8 @@ def show_new_record():
                 status = st.selectbox("Статус", ["В процессе", "Выполнено"])
             comment = st.text_area("Комментарий")
         if st.form_submit_button("Сохранить", type="primary"):
-            if record_type != "Время" and not topic.strip():
-                st.error("Укажи тему записи.")
+            if record_type == "Долг" and not topic.strip():
+                st.error("Для долга обязательно укажи тему.")
                 return
             query(
                 """INSERT INTO records
@@ -397,7 +397,7 @@ def show_new_record():
                 (uid(), record_date.isoformat(), record_type, subject, topic.strip(), grade, hours, comment.strip(), status),
                 write=True,
             )
-            st.success("Запись сохранена.")
+            set_notice(record_success_message(record_type))
             st.rerun()
 
 
@@ -468,7 +468,7 @@ def show_subjects():
                 else:
                     try:
                         query("INSERT INTO subjects (user_id,name,color) VALUES (%s,%s,%s)", (uid(), name, color), write=True)
-                        st.success("Предмет добавлен.")
+                        set_notice("📚 Предмет добавлен!")
                         st.rerun()
                     except IntegrityError:
                         st.error("Такой предмет уже существует.")
@@ -514,7 +514,7 @@ def show_events():
                         "INSERT INTO events (user_id,date,title,description,color) VALUES (%s,%s,%s,%s,%s)",
                         (uid(), event_date.isoformat(), title, description.strip(), color), write=True,
                     )
-                    st.success("Событие добавлено.")
+                    set_notice("📅 Событие добавлено!")
                     st.rerun()
     with c2:
         st.subheader("Мои события")
@@ -583,7 +583,7 @@ def show_users():
                             (login, hash_password(password), datetime.now().strftime("%Y-%m-%d"), bool(make_admin)),
                             write=True,
                         )
-                        st.success("Пользователь создан.")
+                        set_notice("👤 Пользователь создан!")
                         st.rerun()
                     except IntegrityError:
                         st.error("Такой логин уже существует.")
