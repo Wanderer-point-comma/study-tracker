@@ -166,6 +166,28 @@ def query(sql, params=(), fetch=False, fetchone=False, write=False):
 
 
 # ============================================================
+# UI NOTIFICATIONS
+# ============================================================
+
+def set_notice(message: str, kind: str = "success"):
+    st.session_state["notice"] = {"message": message, "kind": kind}
+
+
+def show_notice():
+    notice = st.session_state.pop("notice", None)
+    if not notice:
+        return
+    if notice["kind"] == "danger":
+        st.error(notice["message"])
+    else:
+        st.success(notice["message"])
+
+
+def record_success_message(record_type):
+    return {"Оценка": "⭐ Оценка добавлена!", "Долг": "⚠️ Долг добавлен!", "Время": "⏱️ Время добавлено!"}.get(record_type, "📝 Запись добавлена!")
+
+
+# ============================================================
 # PASSWORDS / AUTH
 # ============================================================
 
@@ -223,6 +245,21 @@ def username():
 
 def admin():
     return bool(st.session_state.get("is_admin", False))
+
+
+def grade_badge(grade):
+    if pd.isna(grade):
+        return "—"
+    value = float(grade)
+    if value >= 5:
+        background = "#2563eb"
+    elif value >= 4:
+        background = "#16a34a"
+    elif value >= 3:
+        background = "#eab308"
+    else:
+        background = "#dc2626"
+    return f'<span style="display:inline-block;padding:0.15rem 0.55rem;border-radius:999px;background:{background};color:white;font-weight:700;">{value:g}</span>'
 
 
 # ============================================================
@@ -379,7 +416,7 @@ def show_new_record():
         with c2:
             grade = hours = status = None
             if record_type == "Оценка":
-                grade = st.number_input("Оценка", 0.0, 100.0, 0.0, 0.5)
+                grade = st.number_input("Оценка", 2.0, 5.0, 5.0, 1.0)
                 hours = st.number_input("Затрачено часов", 0.0, 24.0, 0.0, 0.5)
             elif record_type == "Время":
                 hours = st.number_input("Часы", 0.0, 24.0, 0.0, 0.5)
@@ -434,18 +471,20 @@ def show_records():
         with left:
             st.markdown(f"{icon} **{record.subject}** — {record.topic or 'общее'} ({record.date})")
             details = []
-            if pd.notna(record.grade): details.append(f"Оценка: {record.grade}")
+            if pd.notna(record.grade): details.append(f"Оценка: {grade_badge(record.grade)}")
             if pd.notna(record.hours): details.append(f"Часы: {record.hours}")
             if record.status: details.append(f"Статус: {record.status}")
             if record.comment: details.append(f"💬 {record.comment}")
-            if details: st.caption(" · ".join(details))
+            if details: st.markdown(" · ".join(details), unsafe_allow_html=True)
         with right:
             if record.record_type == "Долг" and record.status != "Выполнено":
                 if st.button("✅", key=f"complete_record_{record.id}"):
                     query("UPDATE records SET status='Выполнено' WHERE id=%s AND user_id=%s", (int(record.id), uid()), write=True)
+                    set_notice("✅ Долг отмечен как выполненный!")
                     st.rerun()
             if st.button("🗑️", key=f"delete_record_{record.id}"):
                 query("DELETE FROM records WHERE id=%s AND user_id=%s", (int(record.id), uid()), write=True)
+                set_notice("🗑️ Запись удалена!")
                 st.rerun()
 
 
@@ -481,7 +520,10 @@ def show_subjects():
         for _, subject in subjects.iterrows():
             left, right = st.columns([5, 1])
             with left:
-                st.markdown(f"**{subject['name']}**")
+                st.markdown(
+                    f'<div style="padding:14px 16px;margin:5px 0;border-radius:10px;background:{subject["color"]}20;border-left:6px solid {subject["color"]};font-size:1.08rem;"><strong>📚 {subject["name"]}</strong></div>',
+                    unsafe_allow_html=True,
+                )
             with right:
                 if st.button("🗑️", key=f"delete_subject_{subject.id}"):
                     count = query(
@@ -492,6 +534,7 @@ def show_subjects():
                         st.error("Нельзя удалить предмет, пока у него есть записи.")
                     else:
                         query("DELETE FROM subjects WHERE id=%s AND user_id=%s", (int(subject.id), uid()), write=True)
+                        set_notice("🗑️ Предмет удалён!")
                         st.rerun()
 
 
@@ -531,6 +574,7 @@ def show_events():
             with right:
                 if st.button("🗑️", key=f"delete_event_{event.id}"):
                     query("DELETE FROM events WHERE id=%s AND user_id=%s", (int(event.id), uid()), write=True)
+                    set_notice("🗑️ Событие удалено!")
                     st.rerun()
 
 
@@ -600,6 +644,7 @@ def show_users():
                 if int(user.id) != int(uid()):
                     if st.button("🗑️", key=f"delete_user_{user.id}"):
                         query("DELETE FROM users WHERE id=%s", (int(user.id),), write=True)
+                        set_notice("🗑️ Пользователь удалён!")
                         st.rerun()
 
 
@@ -612,6 +657,8 @@ try:
 
     if "logged_in" not in st.session_state:
         st.session_state.logged_in = False
+
+    show_notice()
 
     if not st.session_state.logged_in:
         user_count = query("SELECT COUNT(*) FROM users", fetchone=True)[0]
