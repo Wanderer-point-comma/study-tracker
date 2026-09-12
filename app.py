@@ -432,7 +432,12 @@ def show_dashboard():
         subject_debts = subject_df[subject_df.record_type == "Долг"]
         active = subject_debts[subject_debts.status != "Выполнено"]
 
-        st.markdown(f"### 📚 {subject_name}")
+        st.markdown(
+            f'<div style="padding:12px 16px;border-radius:10px;'
+            f'border-left:6px solid {subj["color"]};background:{subj["color"]}20;'
+            f'font-size:1.15rem;font-weight:800;">📚 {subject_name}</div>',
+            unsafe_allow_html=True,
+        )
         m1, m2, m3, m4 = st.columns(4)
         m1.metric("⭐ Средний балл", f"{grades.mean():.1f}" if not grades.empty else "—", f"{len(grades)} оценок")
         m2.metric("⏱️ Часы", f"{hours.sum():.1f}" if not hours.empty else "—", f"{len(hours)} записей")
@@ -443,6 +448,23 @@ def show_dashboard():
 
     if not df.empty:
         st.divider()
+        st.subheader("⭐ Состав оценок")
+        grade_rows = df[(df.record_type == "Оценка") & df.grade.notna()].copy()
+
+        if grade_rows.empty:
+            st.caption("Оценок пока нет.")
+        else:
+            for subject_name, subject_rows in grade_rows.groupby("subject", sort=True):
+                st.markdown(f"**📚 {subject_name}**")
+                cols = st.columns(4)
+                for column_index, grade_value in enumerate([2, 3, 4, 5]):
+                    count = int((subject_rows["grade"].astype(float) == grade_value).sum())
+                    with cols[column_index]:
+                        st.markdown(
+                            f"{grade_badge(grade_value)} × **{count}**",
+                            unsafe_allow_html=True,
+                        )
+
         left, right = st.columns(2)
         with left:
             grades_df = df[(df.record_type == "Оценка") & df.grade.notna()]
@@ -470,9 +492,7 @@ def show_dashboard():
             st.caption("Ближайших событий нет.")
         else:
             for _, event in upcoming.iterrows():
-                st.markdown(f"**{event['date']}** — {event['title']}")
-                if event["description"]:
-                    st.caption(event["description"])
+                st.markdown(event_card_html(event), unsafe_allow_html=True)
 
 
 # ============================================================
@@ -746,7 +766,7 @@ try:
         else:
             show_login()
     else:
-        menu = ["📊 Главная", "✍️ Новая запись", "📚 Предметы", "📅 События", "📋 Записи", "⚙️ Настройки"]
+        menu = ["📊 Главная", "✍️ Новая запись", "📚 Предметы", "📅 События", "⭐ Оценки", "📋 Записи", "⚙️ Настройки"]
         if admin():
             menu.append("👥 Пользователи")
         menu.append("🚪 Выйти")
@@ -763,6 +783,7 @@ try:
         elif page == "✍️ Новая запись": show_new_record()
         elif page == "📚 Предметы": show_subjects()
         elif page == "📅 События": show_events()
+        elif page == "⭐ Оценки": show_grades()
         elif page == "📋 Записи": show_records()
         elif page == "⚙️ Настройки": show_settings()
         elif page == "👥 Пользователи": show_users()
