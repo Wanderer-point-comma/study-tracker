@@ -13,6 +13,196 @@ import streamlit as st
 
 st.set_page_config(page_title="Личный дневник", page_icon="📚", layout="wide")
 
+# ============================================================
+# MODERN UI
+# ============================================================
+
+st.markdown(
+    """
+    <style>
+    /* Общий масштаб и фон */
+    .stApp {
+        background:
+            radial-gradient(circle at 10% 0%, rgba(59,130,246,.12), transparent 28%),
+            radial-gradient(circle at 90% 10%, rgba(139,92,246,.10), transparent 25%),
+            #0b1020;
+    }
+
+    .main .block-container {
+        max-width: 1450px;
+        padding: 2.4rem 3.2rem 4rem;
+    }
+
+    /* Заголовки страниц */
+    h1 {
+        font-size: 2.7rem !important;
+        line-height: 1.15 !important;
+        letter-spacing: -.03em;
+        margin-bottom: 1.4rem !important;
+    }
+
+    h2 {
+        font-size: 1.85rem !important;
+        margin-top: 1.7rem !important;
+    }
+
+    h3 {
+        font-size: 1.35rem !important;
+    }
+
+    p, label, .stMarkdown, .stCaption, .stTextInput, .stSelectbox,
+    .stNumberInput, .stDateInput, .stTextArea, .stMultiSelect {
+        font-size: 1.03rem;
+    }
+
+    /* Sidebar */
+    section[data-testid="stSidebar"] {
+        background: linear-gradient(180deg, #10182d 0%, #0d1425 100%);
+        border-right: 1px solid rgba(255,255,255,.08);
+    }
+
+    section[data-testid="stSidebar"] > div {
+        padding-top: 1.6rem;
+    }
+
+    section[data-testid="stSidebar"] [data-testid="stMarkdownContainer"] p {
+        font-size: 1.05rem;
+    }
+
+    /* Навигационное radio-меню */
+    section[data-testid="stSidebar"] div[role="radiogroup"] {
+        gap: .45rem;
+    }
+
+    section[data-testid="stSidebar"] div[role="radiogroup"] label {
+        border-radius: 12px;
+        padding: .65rem .8rem;
+        transition: all .15s ease;
+    }
+
+    section[data-testid="stSidebar"] div[role="radiogroup"] label:hover {
+        background: rgba(59,130,246,.12);
+    }
+
+    /* Карточки metric */
+    div[data-testid="stMetric"] {
+        background: linear-gradient(145deg, rgba(30,41,59,.92), rgba(15,23,42,.92));
+        border: 1px solid rgba(148,163,184,.16);
+        border-radius: 18px;
+        padding: 1.15rem 1.25rem;
+        min-height: 125px;
+        box-shadow: 0 10px 30px rgba(0,0,0,.18);
+    }
+
+    div[data-testid="stMetricLabel"] {
+        font-size: 1rem !important;
+    }
+
+    div[data-testid="stMetricValue"] {
+        font-size: 2rem !important;
+        font-weight: 800 !important;
+    }
+
+    /* Формы */
+    div[data-testid="stForm"] {
+        background: rgba(15,23,42,.58);
+        border: 1px solid rgba(148,163,184,.15);
+        border-radius: 18px;
+        padding: 1.35rem 1.45rem;
+        box-shadow: 0 14px 40px rgba(0,0,0,.14);
+    }
+
+    /* Поля */
+    div[data-baseweb="input"] > div,
+    div[data-baseweb="textarea"] > div,
+    div[data-baseweb="select"] > div {
+        border-radius: 11px;
+    }
+
+    input, textarea {
+        font-size: 1.02rem !important;
+    }
+
+    /* Кнопки */
+    .stButton > button,
+    .stFormSubmitButton > button {
+        border-radius: 11px;
+        min-height: 2.65rem;
+        font-size: 1rem;
+        font-weight: 700;
+        transition: transform .12s ease, box-shadow .12s ease;
+    }
+
+    .stButton > button:hover,
+    .stFormSubmitButton > button:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 8px 22px rgba(0,0,0,.22);
+    }
+
+    /* Уведомления */
+    div[data-testid="stAlert"] {
+        border-radius: 14px;
+        font-size: 1.02rem;
+        padding: .9rem 1rem;
+    }
+
+    /* Таблицы */
+    div[data-testid="stDataFrame"] {
+        border-radius: 14px;
+        overflow: hidden;
+        border: 1px solid rgba(148,163,184,.14);
+    }
+
+    /* Графики */
+    div[data-testid="stPlotlyChart"] {
+        background: rgba(15,23,42,.45);
+        border: 1px solid rgba(148,163,184,.12);
+        border-radius: 18px;
+        padding: .55rem;
+    }
+
+    /* Разделители */
+    hr {
+        margin: 2rem 0 !important;
+        border-color: rgba(148,163,184,.12) !important;
+    }
+
+    /* Чуть больше воздуха в колонках */
+    div[data-testid="column"] {
+        padding-left: .4rem;
+        padding-right: .4rem;
+    }
+
+    /* Карточки предметов/событий/оценок, которые создаются HTML */
+    .diary-card {
+        border-radius: 16px;
+        border: 1px solid rgba(148,163,184,.14);
+        background: rgba(15,23,42,.62);
+        padding: 1rem 1.15rem;
+        box-shadow: 0 8px 25px rgba(0,0,0,.12);
+    }
+
+    /* На узких экранах */
+    @media (max-width: 900px) {
+        .main .block-container {
+            padding: 1.25rem 1rem 3rem;
+        }
+        h1 {
+            font-size: 2.15rem !important;
+        }
+        h2 {
+            font-size: 1.55rem !important;
+        }
+        div[data-testid="stMetric"] {
+            min-height: 105px;
+            padding: .85rem;
+        }
+    }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
 PBKDF2_ITERATIONS = 310_000
 POOL_MIN = 1
 POOL_MAX = 5
@@ -433,9 +623,11 @@ def show_dashboard():
         active = subject_debts[subject_debts.status != "Выполнено"]
 
         st.markdown(
-            f'<div style="padding:12px 16px;border-radius:10px;'
-            f'border-left:6px solid {subj["color"]};background:{subj["color"]}20;'
-            f'font-size:1.15rem;font-weight:800;">📚 {subject_name}</div>',
+            f'<div class="diary-card" style="border-left:7px solid {subj["color"]};'
+            f'background:linear-gradient(90deg,{subj["color"]}18,rgba(15,23,42,.55));'
+            f'padding:18px 20px;margin:14px 0 8px;">'
+            f'<div style="font-size:1.28rem;font-weight:850;">📚 {subject_name}</div>'
+            f'</div>',
             unsafe_allow_html=True,
         )
         m1, m2, m3, m4 = st.columns(4)
@@ -449,6 +641,7 @@ def show_dashboard():
     if not df.empty:
         st.divider()
         st.subheader("⭐ Состав оценок")
+        st.caption("Сколько раз ты получил каждую оценку по каждому предмету")
         grade_rows = df[(df.record_type == "Оценка") & df.grade.notna()].copy()
 
         if grade_rows.empty:
@@ -461,7 +654,10 @@ def show_dashboard():
                     count = int((subject_rows["grade"].astype(float) == grade_value).sum())
                     with cols[column_index]:
                         st.markdown(
-                            f"{grade_badge(grade_value)} × **{count}**",
+                            f'<div class="diary-card" style="text-align:center;padding:13px 8px;">'
+                            f'<div style="font-size:1.05rem;">{grade_badge(grade_value)}</div>'
+                            f'<div style="font-size:1.25rem;font-weight:800;margin-top:6px;">× {count}</div>'
+                            f'</div>',
                             unsafe_allow_html=True,
                         )
 
