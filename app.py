@@ -609,12 +609,13 @@ def grade_color(grade):
 
 
 def show_grades():
+    """Отдельная страница оценок без вывода HTML как обычного текста."""
     st.title("⭐ Оценки")
     user_id = uid()
 
     df = get_df(
         """
-        SELECT date, subject, topic, grade, hours, comment
+        SELECT id, date, subject, topic, grade, hours, comment
         FROM records
         WHERE user_id = %s
           AND record_type = 'Оценка'
@@ -628,132 +629,115 @@ def show_grades():
         st.info("Пока нет оценок.")
         return
 
-    df["date"] = pd.to_datetime(df["date"])
+    df["date"] = pd.to_datetime(df["date"], errors="coerce")
     df["grade"] = pd.to_numeric(df["grade"], errors="coerce")
+    df = df.dropna(subset=["date", "grade"])
+
     subjects = sorted(df["subject"].dropna().astype(str).unique().tolist())
 
     c1, c2 = st.columns(2)
     with c1:
-        selected_subjects = st.multiselect("📚 Предметы", subjects)
-    with c2:
-        dates = st.date_input(
-            "📅 Период",
-            value=(df["date"].min().date(), df["date"].max().date()),
+        selected_subjects = st.multiselect(
+            "📚 Предметы", subjects, placeholder="Все предметы"
         )
+    with c2:
+        min_date = df["date"].min().date()
+        max_date = df["date"].max().date()
+        selected_dates = st.date_input("📅 Период", value=(min_date, max_date))
 
     filtered = df.copy()
-
     if selected_subjects:
         filtered = filtered[filtered["subject"].isin(selected_subjects)]
 
-    if isinstance(dates, (tuple, list)) and len(dates) == 2:
+    if isinstance(selected_dates, (tuple, list)) and len(selected_dates) == 2:
+        start_date, end_date = selected_dates
         filtered = filtered[
-            (filtered["date"].dt.date >= dates[0])
-            & (filtered["date"].dt.date <= dates[1])
+            (filtered["date"].dt.date >= start_date)
+            & (filtered["date"].dt.date <= end_date)
         ]
 
     if filtered.empty:
         st.warning("За выбранный период оценок нет.")
         return
 
-    avg = filtered["grade"].mean()
-    unique_subjects = sorted(
-        filtered["subject"].dropna().astype(str).unique().tolist()
-    )
+    unique_subjects = sorted(filtered["subject"].dropna().astype(str).unique().tolist())
+    average = float(filtered["grade"].mean())
 
     if len(unique_subjects) == 1:
         average_label = f"Средний балл · {unique_subjects[0]}"
         average_delta = f"{len(filtered)} оценок"
-    elif len(unique_subjects) > 1:
+    else:
         average_label = "Средний балл · все предметы"
         average_delta = f"{len(filtered)} оценок · {len(unique_subjects)} предмета"
-    else:
-        average_label = "Средний балл"
-        average_delta = f"{len(filtered)} оценок"
 
-    st.metric(average_label, f"{avg:.2f}", average_delta)
+    st.metric(average_label, f"{average:.2f}", average_delta)
 
-    # Если выбрано несколько предметов, показываем их средние отдельно,
-    # чтобы было понятно, из каких предметов складывается общий показатель.
     if len(unique_subjects) > 1:
+        st.subheader("Средний балл по предметам")
         subject_averages = (
             filtered.groupby("subject", as_index=False)["grade"]
-            .mean()
-            .sort_values("grade", ascending=False)
+            .agg(["mean", "count"])
+            .reset_index()
+            .sort_values("mean", ascending=False)
         )
-        cols = st.columns(min(4, len(subject_averages)))
-        for i, row in subject_averages.iterrows():
-            with cols[i % len(cols)]:
+        metric_cols = st.columns(min(4, len(subject_averages)))
+        for i, (_, row) in enumerate(subject_averages.iterrows()):
+            with metric_cols[i % len(metric_cols)]:
                 st.metric(
-                    str(row["subject"]),
-                    f"{float(row['grade']):.2f}",
+                    f"📚 {row['subject']}",
+                    f"{float(row['mean']):.2f}",
+                    f"{int(row['count'])} оценок",
                 )
 
     st.divider()
+    st.subheader("Оценки по датам")
+    st.caption("🔴 2  ·  🟡 3  ·  🟢 4  ·  🔵 5")
 
-    # Главное изменение: сначала показываем ПРЕДМЕТ крупно,
-    # затем оценку и тему. Поэтому предмет невозможно потерять
-    # среди остальных данных.
+    def grade_icon(value):
+        value = float(value)
+        if value < 2.5:
+            return "🔴"
+        if value < 3.5:
+            return "🟡"
+        if value < 4.5:
+            return "🟢"
+        return "🔵"
+
     for day, day_df in filtered.groupby(filtered["date"].dt.date, sort=False):
-        st.markdown(
-            f'<div style="font-size:1.15rem;font-weight:800;margin:18px 0 10px 0;">'
-            f'📅 {day.strftime("%d.%m.%Y")}</div>',
-            unsafe_allow_html=True,
-        )
+        st.markdown(f"### 📅 {day.strftime('%d.%m.%Y')}")
 
         for _, row in day_df.iterrows():
             grade = float(row["grade"])
-            subject = str(row["subject"]) if pd.notna(row["subject"]) else "Без предмета"
-            topic = str(row["topic"]) if pd.notna(row["topic"]) and str(row["topic"]).strip() else "Без темы"
-            comment = str(row["comment"]) if pd.notna(row["comment"]) and str(row["comment"]).strip() else ""
-
-            color = grade_color(grade)
-
-            st.markdown(
-                f"""
-                <div style="
-                    display:flex;
-                    align-items:center;
-                    gap:18px;
-                    padding:16px 18px;
-                    margin:8px 0;
-                    border:1px solid #e2e8f0;
-                    border-left:6px solid {color};
-                    border-radius:14px;
-                    background:#ffffff;
-                    box-shadow:0 3px 12px rgba(15,23,42,.06);
-                ">
-                    <div style="
-                        min-width:54px;
-                        text-align:center;
-                        font-size:1.7rem;
-                        font-weight:900;
-                        color:{color};
-                    ">{grade:g}</div>
-
-                    <div style="flex:1;min-width:0;">
-                        <div style="
-                            font-size:1.08rem;
-                            font-weight:800;
-                            color:#0f172a;
-                            margin-bottom:4px;
-                        ">📚 {subject}</div>
-
-                        <div style="
-                            color:#64748b;
-                            font-size:.95rem;
-                        ">📝 {topic}</div>
-
-                        {f'<div style="color:#64748b;font-size:.9rem;margin-top:5px;">💬 {comment}</div>' if comment else ''}
-                    </div>
-
-                    <div style="font-size:.9rem;color:#64748b;white-space:nowrap;">
-                        {day.strftime("%d.%m.%Y")}
-                    </div>
-                </div>
-                """,
-                unsafe_allow_html=True,
+            subject = (
+                str(row["subject"]).strip()
+                if pd.notna(row["subject"]) and str(row["subject"]).strip()
+                else "Без предмета"
             )
+            topic = (
+                str(row["topic"]).strip()
+                if pd.notna(row["topic"]) and str(row["topic"]).strip()
+                else "Без темы"
+            )
+            comment = (
+                str(row["comment"]).strip()
+                if pd.notna(row["comment"]) and str(row["comment"]).strip()
+                else ""
+            )
+
+            # Важно: здесь нет st.code/st.text и нет большого HTML-шаблона.
+            # Поэтому исходный HTML не может появиться на странице как текст.
+            with st.container(border=True):
+                col_grade, col_info, col_extra = st.columns([1, 5, 1.4])
+                with col_grade:
+                    st.metric("Оценка", f"{grade_icon(grade)} {grade:g}")
+                with col_info:
+                    st.markdown(f"**📚 {subject}**")
+                    st.caption(f"📝 {topic}")
+                    if comment:
+                        st.caption(f"💬 {comment}")
+                with col_extra:
+                    if pd.notna(row["hours"]) and float(row["hours"]) > 0:
+                        st.metric("⏱️ Часы", f"{float(row['hours']):g}")
 
         st.caption(
             f"Средний за день: {day_df['grade'].mean():.2f} · "
