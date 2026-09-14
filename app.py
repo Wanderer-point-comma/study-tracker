@@ -2,7 +2,6 @@ import hashlib
 import hmac
 import os
 import secrets
-import textwrap
 from datetime import date, datetime
 
 import pandas as pd
@@ -711,7 +710,7 @@ def show_grades():
             color = grade_color(grade)
 
             st.markdown(
-                textwrap.dedent(f"""
+                f"""
                 <div style="
                     display:flex;
                     align-items:center;
@@ -754,7 +753,7 @@ def show_grades():
                 </div>
                 """,
                 unsafe_allow_html=True,
-            ))
+            )
 
         st.caption(
             f"Средний за день: {day_df['grade'].mean():.2f} · "
