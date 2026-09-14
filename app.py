@@ -657,7 +657,38 @@ def show_grades():
         return
 
     avg = filtered["grade"].mean()
-    st.metric("Средний балл", f"{avg:.2f}", f"{len(filtered)} оценок")
+    unique_subjects = sorted(
+        filtered["subject"].dropna().astype(str).unique().tolist()
+    )
+
+    if len(unique_subjects) == 1:
+        average_label = f"Средний балл · {unique_subjects[0]}"
+        average_delta = f"{len(filtered)} оценок"
+    elif len(unique_subjects) > 1:
+        average_label = "Средний балл · все предметы"
+        average_delta = f"{len(filtered)} оценок · {len(unique_subjects)} предмета"
+    else:
+        average_label = "Средний балл"
+        average_delta = f"{len(filtered)} оценок"
+
+    st.metric(average_label, f"{avg:.2f}", average_delta)
+
+    # Если выбрано несколько предметов, показываем их средние отдельно,
+    # чтобы было понятно, из каких предметов складывается общий показатель.
+    if len(unique_subjects) > 1:
+        subject_averages = (
+            filtered.groupby("subject", as_index=False)["grade"]
+            .mean()
+            .sort_values("grade", ascending=False)
+        )
+        cols = st.columns(min(4, len(subject_averages)))
+        for i, row in subject_averages.iterrows():
+            with cols[i % len(cols)]:
+                st.metric(
+                    str(row["subject"]),
+                    f"{float(row['grade']):.2f}",
+                )
+
     st.divider()
 
     # Главное изменение: сначала показываем ПРЕДМЕТ крупно,
@@ -679,7 +710,7 @@ def show_grades():
             color = grade_color(grade)
 
             st.markdown(
-                f"""
+                textwrap.dedent(f"""
                 <div style="
                     display:flex;
                     align-items:center;
@@ -722,7 +753,7 @@ def show_grades():
                 </div>
                 """,
                 unsafe_allow_html=True,
-            )
+            ))
 
         st.caption(
             f"Средний за день: {day_df['grade'].mean():.2f} · "
