@@ -591,6 +591,23 @@ def event_card_html(event):
     """
 
 
+def grade_color(grade):
+    """Возвращает цвет оценки: 2 — красный, 3 — жёлтый, 4 — зелёный, 5 — синий."""
+    try:
+        value = float(grade)
+    except (TypeError, ValueError):
+        return "#64748b"
+
+    if value < 2.5:
+        return "#dc2626"
+    elif value < 3.5:
+        return "#eab308"
+    elif value < 4.5:
+        return "#16a34a"
+    else:
+        return "#2563eb"
+
+
 def show_grades():
     st.title("⭐ Оценки")
     user_id = uid()
